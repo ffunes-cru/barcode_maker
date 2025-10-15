@@ -79,12 +79,28 @@ libattopng_t *libattopng_new(size_t width, size_t height, libattopng_type_t type
         png->bpp = 4;
     }
 
-    png->data = (char *) calloc(png->capacity, 1);
+    png->data = (char *) malloc(png->capacity);
     if (!png->data) {
         free(png->palette);
         free(png);
         return NULL;
     }
+    
+    // 2. Inicializar a blanco (0xFF o 255) SOLO para PNG_GRAYSCALE
+    if (png->type == PNG_GRAYSCALE) {
+        // Llenar el buffer con 255 (blanco)
+        memset(png->data, 0xFF, png->capacity);
+    } else {
+        // Para otros tipos, inicializar a 0 (negro o transparente/negro)
+        memset(png->data, 0x00, png->capacity);
+    }
+
+    //png->data = (char *) calloc(png->capacity, 1);
+    //if (!png->data) {
+    //    free(png->palette);
+    //    free(png);
+    //    return NULL;
+    //}
     return png;
 }
 
