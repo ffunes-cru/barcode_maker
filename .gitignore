@@ -1,0 +1,5 @@
+test/
+latex/
+html/
+random_text_output.txt
+*.out

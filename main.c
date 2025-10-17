@@ -7,7 +7,8 @@
 #include FT_FREETYPE_H
 #include FT_GLYPH_H
 
-#define ARRAY_LEN 107
+#define CODE128_ARRAY_LEN 107
+#define ARRAY_LEN 98
 #define HEIGHT 50
 #define HEIGHT_TXT 10
 #define PADDING 10
@@ -60,10 +61,19 @@ typedef struct {
  * @param font_size_px Tamaño de la fuente en píxeles.
  * @return Puntero a la estructura BitmapList con los datos de píxeles, o NULL en caso de error.
  */
-BitmapList* render_text_to_bitmap_list(const char *font_path, const char *text_to_render, int font_size_px, BitmapInitData bitmap_data) {
-    FT_Library library = bitmap_data->library;
-    FT_Face face = bitmap_data->face;
+BitmapList* render_text_to_bitmap_list(const char *font_path, const char *text_to_render, int font_size_px) {
+    FT_Library library;
+    FT_Face face;
     FT_Error error;
+
+    BitmapInitData* bitmap = malloc(sizeof(BitmapInitData));
+    // Inicialización del motor FreeType
+    error = FT_Init_FreeType(&library);
+    DIE_ON_ERROR(error, "Error al inicializar FreeType");
+
+    // Carga de la fuente desde el archivo
+    error = FT_New_Face(library, "font.otf", 0, &face);
+    DIE_ON_ERROR(error, "Error al cargar la fuente OTF/TTF");
 
     // Establecer el tamaño de la fuente (en píxeles)
     error = FT_Set_Pixel_Sizes(face, 0, font_size_px);
@@ -172,6 +182,7 @@ BitmapList* render_text_to_bitmap_list(const char *font_path, const char *text_t
     FT_Done_Face(face);
     FT_Done_FreeType(library);
 
+    free(bitmap);
     return result_list;
 }
 
@@ -179,17 +190,20 @@ Code128Char* code128_fromstr(char* line) {
     Code128Char *temp = malloc(sizeof(Code128Char));
     int j = 0;
     int k = 0;
-    char ntemp[3];
+    int k_val = 0;
+    char ntemp[3] = {0};
     char* temp_pattern = malloc(sizeof(char)*14);
     for (int i = 0 ; line[i] != '\0' ; i++) {
         if (line[i] == ',') {
             j++;
+            if (j == 1) ntemp[k_val] = '\0';
             k = 0;
         }else{
             switch (j) {
                 case 0:
                     //printf("0");
                     ntemp[k++] = line[i];
+                    k_val = k;
                     break;
                 case 1:
                     //printf("1");
@@ -202,9 +216,11 @@ Code128Char* code128_fromstr(char* line) {
             }
         }
     }
+    ntemp[3] = '\0';
+    temp_pattern[k] = '\0';
     temp->value = atoi(ntemp);
     temp->pattern = temp_pattern;
-    printf("value: %d, ascii: %c, pattern: %s", temp->value, temp->ascii, temp->pattern);
+    //printf("value: %d, ascii: %c, pattern: %s", temp->value, temp->ascii, temp->pattern);
     return temp;
 }
 
@@ -219,13 +235,15 @@ int code128_hashf_int(Code128Char* code128) {
     if (code128 != NULL) {
         return code128->value;
     }
+    printf( "ERROR");
     return -1;
 }
 
-void** csv_read(void* *f(char* line), int hash_f(void* st), char* csv_file, int max_lines) {
+
+void** csv_read(void* *f(char* line), int hash_f(void* st), char* csv_file, int max_lines, char isHash) {
     FILE *fptr;
 
-    void **general_st = malloc(sizeof(void*)*max_lines);  //ponerlo como constante
+    void **general_st = calloc(max_lines, sizeof(void*)); 
 
     fptr = fopen(csv_file, "r");
 
@@ -237,11 +255,17 @@ void** csv_read(void* *f(char* line), int hash_f(void* st), char* csv_file, int 
     char *line_buffer = malloc(sizeof(char)*256);
     void *temp;
     int i = 0;
-
+    
     while (fscanf(fptr, "%s\n", line_buffer) != -1) {
         temp = f(line_buffer);
-        general_st[hash_f(temp)] = temp;
+        if (isHash) {
+            general_st[hash_f(temp)] = temp;
+        }else {
+            general_st[i++] = temp;
+        }
+        //printf("%s", line_buffer);
     };
+    printf("%d\n", i);
 
     free(line_buffer);
 
@@ -251,7 +275,7 @@ void** csv_read(void* *f(char* line), int hash_f(void* st), char* csv_file, int 
 
 void code128_dest(Code128Char **code128) {
 
-    for (int i = 0 ; i < ARRAY_LEN ; i++) {
+    for (int i = 0 ; i < CODE128_ARRAY_LEN ; i++) {
         if (code128[i] != NULL) {
             free(code128[i]->pattern);
             free(code128[i]);
@@ -278,12 +302,13 @@ char* create_code(char* input, Code128Char** dicc, Code128Char** dicc_intix) {
         output[j] = START->pattern[j];
     }
     check_sum = START->value;
-    printf("%s\n", START->pattern);
+    //printf("%s\n", START->pattern);
     //Encoded Data
     for (; i <= inp_len ; i++) {
         if (input[i-1] == ' ') {
             temp_char = dicc['b'];
         }else {
+            //printf("\n%c\n\n", input[i-1]);
             temp_char = dicc[input[i-1]];
         }
 
@@ -297,15 +322,12 @@ char* create_code(char* input, Code128Char** dicc, Code128Char** dicc_intix) {
         for (int j = 0 ; j < 11 ; j++) {
             output[i*11 + j] = temp_char->pattern[j];
         }
-        printf("%s\n", temp_char->pattern);
+        //printf("%s\n", temp_char->pattern);
         //printf("%c\n", temp_char->ascii);
     }
     //CheckDigit
-    printf("%d\n", check_sum);
     check_value = check_sum % 103;
     temp_char = dicc_intix[check_value];
-    printf("%s\n", temp_char->pattern);
-    printf("%d\n", check_value);
     for (int j = 0 ; j < 11 ; j++) {
         output[i*11 + j] = temp_char->pattern[j];
     }
@@ -314,16 +336,28 @@ char* create_code(char* input, Code128Char** dicc, Code128Char** dicc_intix) {
     for (int j = 0 ; j < 11 ; j++) {
         output[i*11 + j] = STOP->pattern[j];
     }
-    printf("%s\n", STOP->pattern);
+    //printf("%s\n", STOP->pattern);
     output[(inp_len + 3)*11] = '\0';
     return output;
 }
 
-void save_code128(char* texto, Code128Dict dict) {
+void save_code128(char* texto, Code128Dict dict, BitmapInitData* bitmap, char* filename) {
+
+
+    if (texto == NULL) {
+        fprintf(stderr, "Advertencia: texto de entrada es NULL para %s. Saltando.\n", filename);
+        printf("%s\n", stderr);
+        return; 
+    }
 
     char* code = create_code(texto, dict.charix, dict.valueix);
 
-    printf("%s", code);
+    if (code == NULL) {
+        fprintf(stderr, "Error: No se pudo crear el código para '%s'.\n", texto);
+        printf("%s\n", stderr);
+        return; // O hacer la limpieza parcial y retornar
+    }
+
     int code_len = strlen(code);
 
     int image_width = (code_len+1 + 2)*RES_MULT;
@@ -364,101 +398,65 @@ void save_code128(char* texto, Code128Dict dict) {
     free(list->points);
     free(list);
 
-    libattopng_save(png, "test_rgba.png");
+    libattopng_save(png, filename);
     libattopng_destroy(png);
 }
 
 BitmapInitData *init_bitmap() {
 
-    FT_Library library;
-    FT_Face face;
-
     BitmapInitData* bitmap = malloc(sizeof(BitmapInitData));
-    // Inicialización del motor FreeType
-    error = FT_Init_FreeType(&library);
-    DIE_ON_ERROR(error, "Error al inicializar FreeType");
-
-    // Carga de la fuente desde el archivo
-    error = FT_New_Face(library, font_path, 0, &face);
-    DIE_ON_ERROR(error, "Error al cargar la fuente OTF/TTF");
     
-    bitmap->library = library;
-    bitmap->face = face;
-    
-    return bitmap
+    return bitmap;
 }
 
 Code128Dict init_code128() {
     Code128Dict dict;
     Code128Char **code128_db_charix, **code128_db_valueix;
-    code128_db_charix = (Code128Char**) csv_read((void*) code128_fromstr, (void*) code128_hashf_char, "code128char.txt", ARRAY_LEN);
-    code128_db_valueix = (Code128Char**) csv_read((void*) code128_fromstr, (void*) code128_hashf_int, "code128int.txt", ARRAY_LEN);
+    code128_db_charix = (Code128Char**) csv_read((void*) code128_fromstr, (void*) code128_hashf_char, "code128char.txt", CODE128_ARRAY_LEN, 1);
+    code128_db_valueix = (Code128Char**) csv_read((void*) code128_fromstr, (void*) code128_hashf_int, "code128int.txt", CODE128_ARRAY_LEN, 1);
     dict.valueix = code128_db_valueix;
     dict.charix = code128_db_charix;
     return dict;
 }
 
 void free_inits(Code128Dict dict, BitmapInitData* bitmap) {
-    free(dict.valueix);
-    free(dict.charix);
+    code128_dest(dict.valueix);
+    code128_dest(dict.charix);
     free(bitmap);
 }
 
+
+char* process_txtline(char* line) {
+    int temp_len = 10;
+    char* string = malloc(sizeof(char)*temp_len);
+    int i;
+    for (i = 0 ; line[i] != '\0'; i++) {
+        if (i >= temp_len) {
+            temp_len+= 10;
+            string = realloc(string, sizeof(char)*(temp_len+1));
+        }
+        string[i] = line[i];
+    }
+    string = realloc(string, sizeof(char)*(i + 1));
+    string[i] = '\0';
+    printf("%s\n", string);
+    return string;
+}
+
 int main() {
+    Code128Dict dict = init_code128();
+    BitmapInitData* bitmap = init_bitmap();
+    if (bitmap == NULL) return 1;
     
-    #define RGB(r, g, b) ((r) | ((g) << 8) | ((b) << 16))
-
-    Code128Char **code128_db_charix, **code128_db_valueix;
-    code128_db_charix = (Code128Char**) csv_read((void*) code128_fromstr, (void*) code128_hashf_char, "code128char.txt", ARRAY_LEN);
-    code128_db_valueix = (Code128Char**) csv_read((void*) code128_fromstr, (void*) code128_hashf_int, "code128int.txt", ARRAY_LEN);
-    char texto[] = "A1010";
-
-
-    char* code = create_code(texto, code128_db_charix, code128_db_valueix);
-
-    printf("%s", code);
-    int code_len = strlen(code);
-    code128_dest(code128_db_charix);
-    code128_dest(code128_db_valueix);
-
-    int image_width = (code_len+1 + 2)*RES_MULT;
-    int image_height = (HEIGHT + HEIGHT_TXT + PADDING)*RES_MULT;
-
-    libattopng_t* png = libattopng_new(image_width, image_height, PNG_GRAYSCALE);
-
-    int x, y;
-    for (x = 0; x < code_len*RES_MULT; x++) {
-        for (y = PADDING*RES_MULT; y < HEIGHT*RES_MULT; y++) {
-            switch (code[(int)floor(x / RES_MULT)]) {
-                case '1':
-                    libattopng_set_pixel(png, x, y, 255);
-                    break;
-                case '0':
-                    libattopng_set_pixel(png, x, y, 0);
-                    break;
-            }
-        }
+    char** strings = (char**) csv_read((void*) process_txtline, NULL, "random_text_output.txt", ARRAY_LEN, 0);
+    char strr[40];
+    for (int i = 0 ; i < ARRAY_LEN ; i++) {
+        sprintf(strr, "./test/%d.png", i);
+        printf("%s\n", strr);
+        printf("%s\n", strings[i]);
+        save_code128(strings[i],dict ,bitmap, strr);
+        free(strings[i]);
     }
-
-    BitmapList *list = render_text_to_bitmap_list("test.otf", texto, HEIGHT_TXT*RES_MULT, bitmap_data);
-
-    for (size_t i = 0; i < list->count && i < list->count; i++) {
-        libattopng_set_pixel(png, list->points[i].x + (PADDING)*RES_MULT, list->points[i].y + (HEIGHT + PADDING)*RES_MULT, list->points[i].v);
-        //printf("(%d, %d, %d) ", list->points[i].x, list->points[i].y, list->points[i].v);
-    }
-    
-    //barra adicional
-    for (y = PADDING*RES_MULT; y < HEIGHT*RES_MULT; y++) {
-        for (x = 0 ; x < RES_MULT ; x++) {
-            libattopng_set_pixel(png, code_len*RES_MULT+x, y, 0);
-        }
-    }
-
-    free(code);
-
-    free(list->points);
-    free(list);
-
-    libattopng_save(png, "test_rgba.png");
-    libattopng_destroy(png);
+    free(strings);
+    free_inits(dict, bitmap);
 }
