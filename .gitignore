@@ -3,3 +3,8 @@ latex/
 html/
 random_text_output.txt
 *.out
+build/
+codereadtest/
+install_root/
+output_files/
+input2.txt

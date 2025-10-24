@@ -78,7 +78,7 @@ libattopng_t *libattopng_new(size_t width, size_t height, libattopng_type_t type
         png->capacity *= 4;
         png->bpp = 4;
     }
-
+    
     png->data = (char *) malloc(png->capacity);
     if (!png->data) {
         free(png->palette);
@@ -94,6 +94,7 @@ libattopng_t *libattopng_new(size_t width, size_t height, libattopng_type_t type
         // Para otros tipos, inicializar a 0 (negro o transparente/negro)
         memset(png->data, 0x00, png->capacity);
     }
+    
 
     //png->data = (char *) calloc(png->capacity, 1);
     //if (!png->data) {

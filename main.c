@@ -4,15 +4,35 @@
 #include <string.h>
 #include <ft2build.h>
 #include <math.h>
+#include <unistd.h>
+#include <getopt.h>
 #include FT_FREETYPE_H
 #include FT_GLYPH_H
 
 #define CODE128_ARRAY_LEN 107
-#define ARRAY_LEN 98
-#define HEIGHT 50
-#define HEIGHT_TXT 10
-#define PADDING 10
-#define RES_MULT 4
+
+#define DEFAULT_HEIGHT 20
+#define DEFAULT_HEIGHT_TXT 7
+#define DEFAULT_PADDING_X 5
+#define DEFAULT_PADDING_Y 2
+#define DEFAULT_PADDING_TEXT_Y 2
+#define DEFAULT_RES_MULT 4
+#define DEFAULT_COMP_FACT 2
+
+
+typedef struct {
+    int array_len;
+    int height;
+    char input[255];
+    char input_file[255];
+    char output_dir[255];
+    int height_txt;
+    int padd_x;
+    int padd_y;
+    int padd_txt_y;
+    int res_fact;
+    int comp_fact;
+} Parameters;
 
 typedef struct {
     int value;
@@ -45,6 +65,23 @@ typedef struct {
     FT_Face face;
 } BitmapInitData; 
 
+/*
+void obtener_ruta_completa(char *ruta_archivo_out, const char *nombre_archivo) {
+    char ruta_exe[MAX_PATH];
+    // Obtiene la ruta COMPLETA del ejecutable actual.
+    GetModuleFileNameA(NULL, ruta_exe, MAX_PATH);
+
+    // Encuentra la última barra (separador de directorio)
+    char *ultimo_separador = strrchr(ruta_exe, '\\');
+    if (ultimo_separador) {
+        // Trunca la cadena para dejar solo el directorio
+        *(ultimo_separador + 1) = '\0';
+    }
+
+    // Combina la ruta del directorio con el nombre del archivo relativo
+    snprintf(ruta_archivo_out, MAX_PATH, "%s%s", ruta_exe, nombre_archivo);
+}
+*/
 
 //GESTIÓN DE ERRORES
 #define DIE_ON_ERROR(err, msg) \
@@ -256,16 +293,17 @@ void** csv_read(void* *f(char* line), int hash_f(void* st), char* csv_file, int 
     void *temp;
     int i = 0;
     
-    while (fscanf(fptr, "%s\n", line_buffer) != -1) {
+    while (fscanf(fptr, "%[^\n]", line_buffer) != -1) {
+        //printf("%s", line_buffer);
         temp = f(line_buffer);
         if (isHash) {
             general_st[hash_f(temp)] = temp;
         }else {
             general_st[i++] = temp;
         }
-        //printf("%s", line_buffer);
+        getc(fptr);
     };
-    printf("%d\n", i);
+    //printf("%d\n", i);
 
     free(line_buffer);
 
@@ -318,6 +356,8 @@ char* create_code(char* input, Code128Char** dicc, Code128Char** dicc_intix) {
         }
 
         check_sum += temp_char->value * i;
+        
+        
 
         for (int j = 0 ; j < 11 ; j++) {
             output[i*11 + j] = temp_char->pattern[j];
@@ -331,6 +371,7 @@ char* create_code(char* input, Code128Char** dicc, Code128Char** dicc_intix) {
     for (int j = 0 ; j < 11 ; j++) {
         output[i*11 + j] = temp_char->pattern[j];
     }
+    //printf("\n", temp_char->pattern);
     i++;
     //Stop Symbol
     for (int j = 0 ; j < 11 ; j++) {
@@ -341,7 +382,7 @@ char* create_code(char* input, Code128Char** dicc, Code128Char** dicc_intix) {
     return output;
 }
 
-void save_code128(char* texto, Code128Dict dict, BitmapInitData* bitmap, char* filename) {
+void save_code128(char* texto, Code128Dict dict, BitmapInitData* bitmap, char* filename, Parameters param) {
 
 
     if (texto == NULL) {
@@ -360,36 +401,46 @@ void save_code128(char* texto, Code128Dict dict, BitmapInitData* bitmap, char* f
 
     int code_len = strlen(code);
 
-    int image_width = (code_len+1 + 2)*RES_MULT;
-    int image_height = (HEIGHT + HEIGHT_TXT + PADDING)*RES_MULT;
+
+    int code_res_fac = (int) floor(( param.res_fact / param.comp_fact ));
+    int image_width = (code_len+1 + (param.padd_x*2))*code_res_fac;
+    int image_height = (param.height + (param.height_txt - (param.padd_txt_y*2)) + (param.padd_y*2))*param.res_fact;
+    //int code_res_fac = RES_MULT;
+    //printf("%d", code_res_fac);
 
     libattopng_t* png = libattopng_new(image_width, image_height, PNG_GRAYSCALE);
 
-    int x, y;
-    for (x = 0; x < code_len*RES_MULT; x++) {
-        for (y = PADDING*RES_MULT; y < HEIGHT*RES_MULT; y++) {
-            switch (code[(int)floor(x / RES_MULT)]) {
+    int x, y=1;
+    for (x = param.padd_x*code_res_fac; x < (code_len+param.padd_x)*code_res_fac; x++) {
+        for (y = param.padd_y*param.res_fact; y < param.height*param.res_fact; y++) {
+            switch (code[(int)floor((x - (param.padd_x*code_res_fac)) / code_res_fac)]) {
                 case '1':
-                    libattopng_set_pixel(png, x, y, 255);
+                    //printf(" x  : x: %d , ix: %d", x, (int)floor((x - (PADDING*RES_MULT)) / RES_MULT));
+                    libattopng_set_pixel(png, x, y, 0);
                     break;
                 case '0':
-                    libattopng_set_pixel(png, x, y, 0);
+                    //printf(" 0  : x: %d , ix: %d", x, (int)floor((x - (PADDING*RES_MULT)) / RES_MULT));
+                    libattopng_set_pixel(png, x, y, 255);
                     break;
             }
         }
+        //printf("\n");
     }
 
-    BitmapList *list = render_text_to_bitmap_list("test.otf", texto, HEIGHT_TXT*RES_MULT);
+    BitmapList *list = render_text_to_bitmap_list("test.otf", texto, (param.height_txt - param.padd_txt_y)*param.res_fact);
 
-    for (size_t i = 0; i < list->count && i < list->count; i++) {
-        libattopng_set_pixel(png, list->points[i].x + (PADDING)*RES_MULT, list->points[i].y + (HEIGHT + PADDING)*RES_MULT, list->points[i].v);
+    int center_pad = (int) (image_width / 2) - (list->width / 2);
+
+    for (size_t i = 0; i < list->count; i++) {
+        libattopng_set_pixel(png, list->points[i].x + center_pad, list->points[i].y + (param.height + param.padd_txt_y)*param.res_fact, list->points[i].v);
         //printf("(%d, %d, %d) ", list->points[i].x, list->points[i].y, list->points[i].v);
     }
     
     //barra adicional
-    for (y = PADDING*RES_MULT; y < HEIGHT*RES_MULT; y++) {
-        for (x = 0 ; x < RES_MULT ; x++) {
-            libattopng_set_pixel(png, code_len*RES_MULT+x, y, 0);
+    for (y = param.padd_y*param.res_fact; y < param.height*param.res_fact; y++) {
+        for (x = 0 ; x < code_res_fac ; x++) {
+            libattopng_set_pixel(png, (param.padd_x+code_len)*code_res_fac+x, y, 0);
+            libattopng_set_pixel(png, (param.padd_x+code_len)*code_res_fac+x+1, y, 0);
         }
     }
 
@@ -412,6 +463,7 @@ BitmapInitData *init_bitmap() {
 Code128Dict init_code128() {
     Code128Dict dict;
     Code128Char **code128_db_charix, **code128_db_valueix;
+
     code128_db_charix = (Code128Char**) csv_read((void*) code128_fromstr, (void*) code128_hashf_char, "code128char.txt", CODE128_ARRAY_LEN, 1);
     code128_db_valueix = (Code128Char**) csv_read((void*) code128_fromstr, (void*) code128_hashf_int, "code128int.txt", CODE128_ARRAY_LEN, 1);
     dict.valueix = code128_db_valueix;
@@ -439,24 +491,202 @@ char* process_txtline(char* line) {
     }
     string = realloc(string, sizeof(char)*(i + 1));
     string[i] = '\0';
-    printf("%s\n", string);
     return string;
 }
 
-int main() {
+void print_help_and_exit(const char *prog_name, int rec_value) {
+    fprintf(stdout, "\n");
+    fprintf(stdout, "Usage: %s [GENERAL OPTIONS] [CONFIGURATION OPTIONS]\n", prog_name);
+    fprintf(stdout, "Description: Creates Code128 images with certain configuration parameters.\n");
+    fprintf(stdout, "\n");
+    fprintf(stdout, "General Options:\n");
+    fprintf(stdout, "  -s, --input <string>    Uses console input for creating single a Code128 image.\n");
+    fprintf(stdout, "  -c, --input-file <path>    Route to input, each string in the file must be separated by \\n.\n");
+    fprintf(stdout, "  -o, --output-dir <path>    Code128 image/s output directory.\n");
+    fprintf(stdout, "\n");
+    fprintf(stdout, "Configuration Options:\n");
+    fprintf(stdout, "  -A, --code-len <val>       Define Code128 alphabet length (Default: %d).\n", CODE128_ARRAY_LEN);
+    fprintf(stdout, "  -H, --array-len <val>      Define input array max length (MANDATORY).\n");
+    fprintf(stdout, "  -T, --height <val>         Define height (Default: %d).\n", DEFAULT_HEIGHT);
+    fprintf(stdout, "  -T, --height-txt <val>     Define text height (Default: %d).\n", DEFAULT_HEIGHT_TXT);
+    fprintf(stdout, "  -X, --padd-x <val>         Define x padding (Default: %d).\n", DEFAULT_PADDING_X);
+    fprintf(stdout, "                             WARNING: Be aware that lower values may eliminate the quiet zone, rendering the code unreadable.\n");
+    fprintf(stdout, "  -Y, --padd-y <val>         Define y padding (Default: %d).\n", DEFAULT_PADDING_Y);
+    fprintf(stdout, "  -y, --padd-txt-y <val>     Define y padding for text (Default: %d).\n", DEFAULT_PADDING_TEXT_Y);
+    fprintf(stdout, "  -R, --res-fact <val>       Define integer scaling factor (Default: %d).\n", DEFAULT_RES_MULT);
+    fprintf(stdout, "  -C, --comp-fact <val>      Define code128 compression factor (Value must be <= --res-fact) (Default: %d).\n", DEFAULT_COMP_FACT);
+    // Añade el resto de tus opciones largas aquí...
+    fprintf(stdout, "\n");
+    fprintf(stdout, "  -h, --help                 Show this message and exit.\n");
+    fprintf(stdout, "\n");
+    exit(rec_value);
+}
+
+
+
+int SttoNumber(char* optarg, char flag, char* filename) {
+    long val;
+    char *endptr;
+    char *err_msg = NULL; 
+    if (optarg) {
+
+        val = strtol(optarg, &endptr, 10);
+        
+        if (endptr == optarg) {
+            sprintf(err_msg, "No numeric value provided for %c", flag);
+        } 
+
+        else if (*endptr != '\0') {
+            sprintf(err_msg, "Invalid characters foudn for %c", flag);
+        } 
+
+        else if (val > 2147483647 || val < -2147483648) { // Max/Min de un int de 32 bits
+                sprintf(err_msg, "Value out of range for %c", flag);
+        }
+        
+        if (err_msg) {
+            fprintf(stderr, "Argument error: %s\n", err_msg);
+            print_help_and_exit(filename, 1);
+        }
+
+        // Si pasa las comprobaciones, asigna el valor.
+        return (int) val; 
+            
+    } 
+}
+
+
+int main(int argc, char *argv[]) {
     Code128Dict dict = init_code128();
     BitmapInitData* bitmap = init_bitmap();
     if (bitmap == NULL) return 1;
     
-    char** strings = (char**) csv_read((void*) process_txtline, NULL, "random_text_output.txt", ARRAY_LEN, 0);
-    char strr[40];
-    for (int i = 0 ; i < ARRAY_LEN ; i++) {
-        sprintf(strr, "./test/%d.png", i);
-        printf("%s\n", strr);
-        printf("%s\n", strings[i]);
-        save_code128(strings[i],dict ,bitmap, strr);
-        free(strings[i]);
+    Parameters param = {
+        .array_len = 0,
+        .height = DEFAULT_HEIGHT,
+        .input = "",
+        .input_file = "",
+        .output_dir = "",
+        .height_txt = DEFAULT_HEIGHT_TXT,
+        .padd_x = DEFAULT_PADDING_X,
+        .padd_y = DEFAULT_PADDING_Y,
+        .padd_txt_y = DEFAULT_PADDING_TEXT_Y,
+        .res_fact = DEFAULT_RES_MULT,
+        .comp_fact = DEFAULT_COMP_FACT
+    };
+
+    static struct option long_options[] = {
+        // { "nombre_largo", tiene_argumento, puntero_flag, valor_corto }
+
+        {"input",           optional_argument, 0, 's'},
+        {"input-file",      required_argument, 0, 'c'},
+        {"output-dir",      required_argument, 0, 'o'},
+        
+        {"arr-len",        required_argument, 0, 'A'},
+        {"height",       required_argument, 0, 'H'},
+        {"height-txt",          required_argument, 0, 'T'},
+        {"padd-x",          required_argument, 0, 'X'},
+        {"padd-y",          required_argument, 0, 'Y'},
+        {"padd-txt-y",          required_argument, 0, 'y'},
+        {"res-fact",          required_argument, 0, 'R'},
+        {"comp-fact",          required_argument, 0, 'C'},
+        
+        {"help",            no_argument,       0, 'h'},
+        {0, 0, 0, 0} // Marcador de fin de la lista
+    };
+
+    int opt_index = 0;
+    int c;
+
+    
+
+    while ((c = getopt_long(argc, argv, "c:o:s:A:H:T:X:Y:y:R:C:h", long_options, &opt_index)) != -1) {
+        switch (c) {
+        case 'c':
+            strncpy(param.input_file, optarg, 254);
+            break;
+        case 'o':
+            strncpy(param.output_dir, optarg, 254);
+            break;
+        case 's':
+            strncpy(param.input, optarg, 254);
+            break;
+        case 'A':
+            param.array_len = SttoNumber(optarg, 'A', argv[0]);
+            break;
+        case 'H':
+            param.height = SttoNumber(optarg, 'H', argv[0]);
+            break;
+        case 'T':
+            param.height_txt = SttoNumber(optarg, 'T', argv[0]);
+            break;
+        case 'X': 
+            param.padd_x = SttoNumber(optarg, 'X', argv[0]);
+            break;
+        case 'Y': 
+            param.padd_y = SttoNumber(optarg, 'Y', argv[0]);
+            break;
+        case 'y': 
+            param.padd_txt_y = SttoNumber(optarg, 'y', argv[0]);
+            break;
+        case 'R': 
+            param.res_fact = SttoNumber(optarg, 'R', argv[0]);
+            break;
+        case 'C': 
+            param.comp_fact = SttoNumber(optarg, 'C', argv[0]);
+            break;
+        case 'h':
+            print_help_and_exit(argv[0], 1);
+            break;
+        case '?': // getopt_long imprime el error por defecto para '?'
+            return 1;
+        default:
+            return 1;
+        }
     }
-    free(strings);
+
+    if (strcmp(param.input_file, "") == 0 && strcmp(param.input, "") == 0) {
+        fprintf(stderr, "Error: Please specify the input option (--input-file -c or -s --input).\n");
+        print_help_and_exit(argv[0], 1);
+        return 1;
+    }
+    
+    if (param.array_len == 0 && strcmp(param.input, "") == 0) {
+        fprintf(stderr, "Error: Please provide the number of elements to generate.\n");
+        print_help_and_exit(argv[0], 1);
+        return 1;
+    }
+    printf("input: %s , console: %s", param.input_file, param.input);
+    if (strcmp(param.input_file, "") != 0 && strcmp(param.input, "") != 0) {
+        fprintf(stderr, "Error: Either console input or file input, not both.\n");
+        print_help_and_exit(argv[0], 1);
+        return 1;
+    }
+    char strr[255];
+
+    if (strcmp(param.input, "") != 0) {
+        if (strcmp(param.output_dir, "") != 0) {
+            sprintf(strr, "%s/%s.png", param.output_dir, param.input);
+        } else {
+            sprintf(strr, "./%s.png", param.input);
+        }
+        save_code128(param.input,dict ,bitmap, strr, param);
+    } else {
+
+        char** strings = (char**) csv_read((void*) process_txtline, NULL, param.input_file, param.array_len, 0);
+        for (int i = 0 ; i < param.array_len ; i++) {
+            if (strcmp(param.output_dir, "") != 0) {
+                sprintf(strr, "%s/%s.png", param.output_dir, strings[i]);
+            } else {
+                sprintf(strr, "./%s.png", strings[i]);
+            }
+            printf("%s\n", strr);
+            printf("%s\n", strings[i]);
+            save_code128(strings[i],dict ,bitmap, strr, param);
+            free(strings[i]);
+        } 
+        free(strings);
+    }
+
     free_inits(dict, bitmap);
 }
