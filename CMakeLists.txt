@@ -1,6 +1,8 @@
 # 1. Minimum CMake version required for the project
 cmake_minimum_required(VERSION 3.10)
 
+set(MINGW_DLLS "/usr/x86_64-w64-mingw32/bin/libstdc++-6.dll" "/usr/x86_64-w64-mingw32/bin/libgcc_s_seh-1.dll")
+
 # 2. Name the project
 project(Code128Maker C)
 
@@ -43,4 +45,14 @@ set(RESOURCE_FILES
 install(FILES ${RESOURCE_FILES}
     DESTINATION bin       # <--- CHANGED from DESTINATION . to DESTINATION bin
     COMPONENT Runtime
+)
+
+install(PROGRAMS ${FREETYPE_LIBRARIES}
+    DESTINATION bin
+    COMPONENT Runtime
+)
+
+# Copy the MinGW/GCC runtime DLLs
+install(FILES ${MINGW_DLLS}
+    DESTINATION bin
 )

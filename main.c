@@ -444,6 +444,12 @@ void save_code128(char* texto, Code128Dict dict, BitmapInitData* bitmap, char* f
         }
     }
 
+    for (x = 0 ; x < image_width ; x++) {
+        //libattopng_set_pixel(png, x, image_height, 0);
+        libattopng_set_pixel(png, x, 0, 0);
+    }
+
+
     free(code);
 
     free(list->points);
@@ -505,9 +511,8 @@ void print_help_and_exit(const char *prog_name, int rec_value) {
     fprintf(stdout, "  -o, --output-dir <path>    Code128 image/s output directory.\n");
     fprintf(stdout, "\n");
     fprintf(stdout, "Configuration Options:\n");
-    fprintf(stdout, "  -A, --code-len <val>       Define Code128 alphabet length (Default: %d).\n", CODE128_ARRAY_LEN);
-    fprintf(stdout, "  -H, --array-len <val>      Define input array max length (MANDATORY).\n");
-    fprintf(stdout, "  -T, --height <val>         Define height (Default: %d).\n", DEFAULT_HEIGHT);
+    fprintf(stdout, "  -A, --array-len <val>      Define input array max length (MANDATORY).\n");
+    fprintf(stdout, "  -H, --height <val>         Define height (Default: %d).\n", DEFAULT_HEIGHT);
     fprintf(stdout, "  -T, --height-txt <val>     Define text height (Default: %d).\n", DEFAULT_HEIGHT_TXT);
     fprintf(stdout, "  -X, --padd-x <val>         Define x padding (Default: %d).\n", DEFAULT_PADDING_X);
     fprintf(stdout, "                             WARNING: Be aware that lower values may eliminate the quiet zone, rendering the code unreadable.\n");

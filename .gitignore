@@ -1,10 +1,15 @@
 test/
 latex/
 html/
+lib/
+install_package/
+output_files*/
 random_text_output.txt
 *.out
+*.png
 build/
 codereadtest/
 install_root/
 output_files/
-input2.txt
+input*.txt
+order.txt
