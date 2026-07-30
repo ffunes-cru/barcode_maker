@@ -1,7 +1,4 @@
 test/
-latex/
-html/
-lib/
 install_package/
 output_files*/
 random_text_output.txt
