@@ -281,12 +281,7 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
         }
     }
 
-    // 5. Draw top border line
-    for (int x = 0; x < image_width; x++) {
-        set_pixel(x, 0, 0);
-    }
-
-    // 6. FreeType Text Rasterization
+    // 5. FreeType Text Rasterization
     if (ft_face_) {
         FT_Face face = (FT_Face)ft_face_;
         int font_size = std::max(1, (params.height_txt - params.padd_txt_y) * res_fact);

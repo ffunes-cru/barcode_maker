@@ -17,7 +17,7 @@ namespace fs = std::filesystem;
 
 App::App() {
     // Default Brother QL-1110NWB settings
-    params_.input = "A0101";
+    params_.input = "A0100";
     params_.height = 13;
     params_.height_txt = 16;
     params_.padd_x = 5;
@@ -29,7 +29,7 @@ App::App() {
     strip_settings_.preset = BrotherRollPreset::DK_22205_62mm;
     strip_settings_.roll_width_mm = 62.0f;
     strip_settings_.printable_width_mm = 58.0f;
-    strip_settings_.vertical_feed = true; // Natural downwards feed
+    strip_settings_.vertical_feed = true; // Downwards feed
     strip_settings_.repeat_count = 12;
     strip_settings_.label_gap_mm = 4.0f;
     strip_settings_.show_cut_lines = true;
@@ -234,15 +234,27 @@ void App::render_ui() {
     ImGui::Begin("Code128StudioMainWindow", nullptr, window_flags);
     ImGui::PopStyleVar(2);
 
-    // --- Top Action Header ---
+    // --- Top Action Header (Overflow Fixed) ---
     ImGui::BeginGroup();
     {
         ImGui::TextColored(ImVec4(0.38f, 0.80f, 1.0f, 1.0f), "CODE 128 STUDIO");
         ImGui::SameLine();
-        ImGui::TextDisabled("| Brother QL-1110NWB & Win11 Suite");
+        ImGui::TextDisabled("| Brother QL-1110NWB v%s", CODE128_APP_VERSION);
 
-        ImGui::SameLine(ImGui::GetWindowWidth() - 480.0f);
-        if (ImGui::Button("[ Actualizaciones ]")) {
+        // Calculate right-aligned buttons to never overflow screen
+        float btn1_w = 125.0f;
+        float btn2_w = 135.0f;
+        float btn3_w = 145.0f;
+        float total_btns_w = btn1_w + btn2_w + btn3_w + ImGui::GetStyle().ItemSpacing.x * 2;
+        float window_w = ImGui::GetWindowWidth();
+
+        if (window_w > total_btns_w + 320.0f) {
+            ImGui::SameLine(window_w - total_btns_w - ImGui::GetStyle().WindowPadding.x - 10.0f);
+        } else {
+            ImGui::SameLine();
+        }
+
+        if (ImGui::Button("[ Actualizaciones ]", ImVec2(btn1_w, 0))) {
             show_update_dialog_ = true;
             is_checking_update_ = true;
             std::string err;
@@ -250,11 +262,11 @@ void App::render_ui() {
             is_checking_update_ = false;
         }
         ImGui::SameLine();
-        if (ImGui::Button("[ Preset Brother QL ]")) {
+        if (ImGui::Button("[ Preset Brother ]", ImVec2(btn2_w, 0))) {
             apply_brother_preset();
         }
         ImGui::SameLine();
-        if (ImGui::Button("[ Imprimir Directo ]", ImVec2(160, 0))) {
+        if (ImGui::Button("[ Imprimir Directo ]", ImVec2(btn3_w, 0))) {
             show_print_dialog_ = true;
         }
     }
@@ -443,18 +455,23 @@ void App::render_left_panel() {
 }
 
 void App::render_right_panel() {
+    ImGuiTabItemFlags tab1_flags = (request_tab_switch_ && target_tab_index_ == 0) ? ImGuiTabItemFlags_SetSelected : 0;
+    ImGuiTabItemFlags tab2_flags = (request_tab_switch_ && target_tab_index_ == 1) ? ImGuiTabItemFlags_SetSelected : 0;
+    ImGuiTabItemFlags tab3_flags = (request_tab_switch_ && target_tab_index_ == 2) ? ImGuiTabItemFlags_SetSelected : 0;
+    request_tab_switch_ = false;
+
     if (ImGui::BeginTabBar("MainRightTabBar", ImGuiTabBarFlags_None)) {
-        if (ImGui::BeginTabItem("Previsualizacion en Vivo")) {
+        if (ImGui::BeginTabItem("Previsualizacion Individual", nullptr, tab1_flags)) {
             render_live_preview_tab();
             ImGui::EndTabItem();
         }
 
-        if (ImGui::BeginTabItem("Tira Continua Brother (Hacia Abajo)")) {
+        if (ImGui::BeginTabItem("Tira Continua Brother QL", nullptr, tab2_flags)) {
             render_strip_preview_tab();
             ImGui::EndTabItem();
         }
 
-        if (input_mode_ == InputMode::BatchFile && ImGui::BeginTabItem("Lista de Lote")) {
+        if (input_mode_ == InputMode::BatchFile && ImGui::BeginTabItem("Lista de Lote", nullptr, tab3_flags)) {
             render_batch_table_tab();
             ImGui::EndTabItem();
         }
@@ -469,8 +486,8 @@ void App::render_live_preview_tab() {
         return;
     }
 
-    // Metric Summary Card
-    ImGui::BeginChild("MetricSummaryCard", ImVec2(0, 52), true);
+    // Professional Clean Metric Card
+    ImGui::BeginChild("MetricSummaryCard", ImVec2(0, 48), true);
     {
         float mm_w = (float)calculated_width_px_ / (300.0f / 25.4f);
         float mm_h = (float)calculated_height_px_ / (300.0f / 25.4f);
@@ -481,7 +498,7 @@ void App::render_live_preview_tab() {
         ImGui::NextColumn();
         ImGui::Text("Medida @300DPI: %.1f x %.1f mm", mm_w, mm_h);
         ImGui::NextColumn();
-        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[OK] GPU Direct 144+ FPS");
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Estado: Valido");
         ImGui::Columns(1);
     }
     ImGui::EndChild();
@@ -497,7 +514,7 @@ void App::render_live_preview_tab() {
 
     ImGui::Spacing();
 
-    // --- GPU Direct DrawList Canvas with High-Res Font ---
+    // --- GPU Direct DrawList Canvas (NO Unwanted Top Bar Line) ---
     ImVec2 avail = ImGui::GetContentRegionAvail();
     ImGui::BeginChild("GPUCanvasChild", ImVec2(avail.x, avail.y - 30), true, ImGuiWindowFlags_HorizontalScrollbar);
     {
@@ -519,9 +536,9 @@ void App::render_live_preview_tab() {
         ImVec2 card_min = ImVec2(canvas_pos.x + offset_x, canvas_pos.y + offset_y);
         ImVec2 card_max = ImVec2(card_min.x + barcode_w, card_min.y + barcode_h);
 
-        // White paper background with subtle border
+        // White paper background
         draw_list->AddRectFilled(card_min, card_max, IM_COL32(255, 255, 255, 255), 2.0f);
-        draw_list->AddRect(card_min, card_max, IM_COL32(100, 100, 100, 255), 2.0f);
+        draw_list->AddRect(card_min, card_max, IM_COL32(90, 90, 90, 255), 2.0f);
 
         // Draw barcode bars directly in GPU
         float bar_start_x = card_min.x + (float)(params_.padd_x * code_res_fac) * scale;
@@ -542,9 +559,6 @@ void App::render_live_preview_tab() {
         float stop_extra_x0 = bar_start_x + (float)code_len * module_w;
         float stop_extra_x1 = stop_extra_x0 + module_w * 2.0f;
         draw_list->AddRectFilled(ImVec2(stop_extra_x0, bar_y0), ImVec2(stop_extra_x1, bar_y1), IM_COL32(0, 0, 0, 255));
-
-        // Top border line
-        draw_list->AddLine(card_min, ImVec2(card_max.x, card_min.y), IM_COL32(0, 0, 0, 255), 1.0f * scale);
 
         // High-Quality Crisp Text Rendering
         ImFont* text_font = font_barcode_ ? font_barcode_ : ImGui::GetFont();
@@ -588,21 +602,20 @@ void App::render_strip_preview_tab() {
     float lead_px = strip_settings_.leading_margin_mm * dots_per_mm;
     float trail_px = strip_settings_.trailing_margin_mm * dots_per_mm;
 
-    // Vertical feed dimensions: Width is roll width, Height is strip length
     float tape_width_px = tape_w_mm * dots_per_mm;
     float total_strip_h = lead_px + (single_h + gap_px) * labels_to_render.size() - gap_px + trail_px;
     float total_strip_mm = total_strip_h / dots_per_mm;
 
-    ImGui::BeginChild("StripMetricCard", ImVec2(0, 52), true);
+    ImGui::BeginChild("StripMetricCard", ImVec2(0, 48), true);
     {
         ImGui::Columns(4, "strip_metrics_col", false);
         ImGui::Text("Ancho Rollo: %.1f mm", tape_w_mm);
         ImGui::NextColumn();
         ImGui::Text("Largo Tira: %.1f mm (%.1f in)", total_strip_mm, total_strip_mm / 25.4f);
         ImGui::NextColumn();
-        ImGui::Text("Etiquetas: %zu (Alimentacion Abajo)", labels_to_render.size());
+        ImGui::Text("Etiquetas: %zu", labels_to_render.size());
         ImGui::NextColumn();
-        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[OK] Brother QL-1110NWB");
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Brother QL-1110NWB");
         ImGui::Columns(1);
     }
     ImGui::EndChild();
@@ -623,7 +636,7 @@ void App::render_strip_preview_tab() {
 
     ImGui::Spacing();
 
-    // --- GPU Vertical Tape Roll Canvas (Feeding Downwards) ---
+    // --- GPU Vertical Tape Roll Canvas (No Unwanted Top Lines) ---
     ImVec2 avail = ImGui::GetContentRegionAvail();
     ImGui::BeginChild("GPUVerticalStripCanvas", ImVec2(avail.x, avail.y - 10), true, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     {
@@ -634,14 +647,13 @@ void App::render_strip_preview_tab() {
         float tape_render_w = tape_width_px * scale;
         float tape_render_h = total_strip_h * scale;
 
-        // Center roll tape horizontally in view
         float offset_x = std::max(20.0f, (avail.x - tape_render_w - 30.0f) * 0.5f);
         ImVec2 tape_min = ImVec2(canvas_pos.x + offset_x, canvas_pos.y + 20.0f);
         ImVec2 tape_max = ImVec2(tape_min.x + tape_render_w, tape_min.y + tape_render_h);
 
-        // 1. Draw Continuous White Paper Roll
+        // 1. Draw Continuous Paper Roll
         draw_list->AddRectFilled(tape_min, tape_max, IM_COL32(252, 252, 252, 255), 3.0f);
-        draw_list->AddRect(tape_min, tape_max, IM_COL32(120, 120, 120, 255), 3.0f, 0, 1.5f);
+        draw_list->AddRect(tape_min, tape_max, IM_COL32(110, 110, 110, 255), 3.0f, 0, 1.0f);
 
         // 2. Render labels vertically stacked downwards
         int comp_fact = params_.comp_fact <= 0 ? 1 : params_.comp_fact;
@@ -651,7 +663,6 @@ void App::render_strip_preview_tab() {
 
         float cur_y = tape_min.y + lead_px * scale;
         float label_x0 = tape_min.x + ((tape_render_w - single_w * scale) * 0.5f);
-        float label_x1 = label_x0 + single_w * scale;
 
         ImFont* text_font = font_barcode_ ? font_barcode_ : ImGui::GetFont();
         float target_font_size = (float)std::max(10, (params_.height_txt - params_.padd_txt_y) * res_fact) * scale;
@@ -680,9 +691,6 @@ void App::render_strip_preview_tab() {
             float stop_x1 = stop_x0 + module_w * 2.0f;
             draw_list->AddRectFilled(ImVec2(stop_x0, bar_y0), ImVec2(stop_x1, bar_y1), IM_COL32(0, 0, 0, 255));
 
-            // Top label border
-            draw_list->AddLine(ImVec2(label_x0, label_y0), ImVec2(label_x1, label_y0), IM_COL32(0, 0, 0, 255), 1.0f * scale);
-
             // Crisp Text Rendering
             ImVec2 text_size = text_font->CalcTextSizeA(target_font_size, FLT_MAX, 0.0f, labels_to_render[l].c_str());
             float text_x = label_x0 + (single_w * scale - text_size.x) * 0.5f;
@@ -691,7 +699,7 @@ void App::render_strip_preview_tab() {
             draw_list->AddText(text_font, target_font_size, ImVec2(text_x, text_y),
                                IM_COL32(0, 0, 0, 255), labels_to_render[l].c_str());
 
-            // Horizontal cut guideline between labels across the whole roll
+            // Horizontal cut guideline between labels
             if (strip_settings_.show_cut_lines && l < labels_to_render.size() - 1) {
                 float cut_y = label_y1 + (gap_px * scale * 0.5f);
                 for (float cx = tape_min.x; cx < tape_max.x; cx += 10.0f) {
@@ -748,6 +756,8 @@ void App::render_batch_table_tab() {
                 params_.input = batch_items_[i];
                 strncpy(manual_input_buf_, batch_items_[i].c_str(), sizeof(manual_input_buf_) - 1);
                 update_barcode_data();
+                target_tab_index_ = 0;
+                request_tab_switch_ = true;
             }
 
             ImGui::TableNextColumn();
@@ -760,6 +770,8 @@ void App::render_batch_table_tab() {
                 params_.input = batch_items_[i];
                 strncpy(manual_input_buf_, batch_items_[i].c_str(), sizeof(manual_input_buf_) - 1);
                 update_barcode_data();
+                target_tab_index_ = 0;
+                request_tab_switch_ = true;
             }
         }
         ImGui::EndTable();
@@ -804,7 +816,7 @@ void App::render_print_modal() {
 
         ImGui::Spacing();
 
-        static int print_target_mode = 1; // Default to strip
+        static int print_target_mode = 1;
         ImGui::Text("Contenido a Imprimir:");
         ImGui::RadioButton("Codigo Actual (Etiqueta Individual)", &print_target_mode, 0);
         ImGui::RadioButton("Tira Continua Completa (Rollo Brother QL)", &print_target_mode, 1);

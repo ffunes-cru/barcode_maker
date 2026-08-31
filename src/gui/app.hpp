@@ -61,7 +61,7 @@ private:
     enum class InputMode { Manual, BatchFile };
     InputMode input_mode_ = InputMode::Manual;
 
-    char manual_input_buf_[256] = "A0101";
+    char manual_input_buf_[256] = "A0100";
     char batch_file_path_[512] = "input_rep.txt";
     char output_dir_buf_[512] = "output_files_r";
     char search_filter_buf_[128] = "";
@@ -69,6 +69,10 @@ private:
     std::vector<std::string> batch_items_;
     int selected_batch_index_ = 0;
     int batch_array_len_limit_ = 0; // 0 = all
+
+    // Tab switching control
+    int target_tab_index_ = 0;
+    bool request_tab_switch_ = false;
 
     // Pan & Zoom controls for GPU preview
     float preview_zoom_ = 1.0f;

@@ -8,7 +8,7 @@ inline void ApplyBalancedFluentTheme() {
     ImGuiStyle& style = ImGui::GetStyle();
     ImVec4* colors = style.Colors;
 
-    // --- Balanced Windows 11 Fluent Geometry ---
+    // --- Balanced Windows 11 Geometry ---
     style.WindowRounding    = 6.0f;
     style.ChildRounding     = 5.0f;
     style.FrameRounding     = 4.0f;
@@ -29,7 +29,7 @@ inline void ApplyBalancedFluentTheme() {
     style.ChildBorderSize   = 1.0f;
     style.PopupBorderSize   = 1.0f;
     style.FrameBorderSize   = 1.0f;
-    style.TabBorderSize     = 0.0f;
+    style.TabBorderSize     = 1.0f;
 
     // --- Windows 11 Balanced Dark Palette ---
     const ImVec4 bg_canvas        = ImVec4(0.12f, 0.12f, 0.12f, 1.00f); // #1E1E1E
@@ -44,7 +44,7 @@ inline void ApplyBalancedFluentTheme() {
     const ImVec4 accent_active    = ImVec4(0.00f, 0.40f, 0.72f, 1.00f);
     const ImVec4 accent_subtle    = ImVec4(0.00f, 0.47f, 0.83f, 0.25f);
 
-    const ImVec4 border_subtle    = ImVec4(1.00f, 1.00f, 1.00f, 0.10f);
+    const ImVec4 border_subtle    = ImVec4(1.00f, 1.00f, 1.00f, 0.12f);
     const ImVec4 text_primary     = ImVec4(0.95f, 0.95f, 0.95f, 1.00f);
     const ImVec4 text_secondary   = ImVec4(0.65f, 0.65f, 0.65f, 1.00f);
     const ImVec4 text_disabled    = ImVec4(0.45f, 0.45f, 0.45f, 1.00f);
@@ -82,11 +82,14 @@ inline void ApplyBalancedFluentTheme() {
     colors[ImGuiCol_ResizeGrip]            = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
     colors[ImGuiCol_ResizeGripHovered]     = accent_hover;
     colors[ImGuiCol_ResizeGripActive]      = accent_active;
-    colors[ImGuiCol_Tab]                   = ImVec4(0.15f, 0.15f, 0.15f, 1.00f);
-    colors[ImGuiCol_TabHovered]            = ImVec4(0.24f, 0.24f, 0.24f, 1.00f);
-    colors[ImGuiCol_TabSelected]           = bg_card;
-    colors[ImGuiCol_TabDimmed]             = ImVec4(0.13f, 0.13f, 0.13f, 1.00f);
-    colors[ImGuiCol_TabDimmedSelected]     = ImVec4(0.18f, 0.18f, 0.18f, 1.00f);
+
+    // Distinct TabBar styling (Clear contrast between active and inactive tabs)
+    colors[ImGuiCol_Tab]                   = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);
+    colors[ImGuiCol_TabHovered]            = ImVec4(0.28f, 0.28f, 0.28f, 1.00f);
+    colors[ImGuiCol_TabSelected]           = ImVec4(0.00f, 0.47f, 0.83f, 1.00f);
+    colors[ImGuiCol_TabDimmed]             = ImVec4(0.15f, 0.15f, 0.15f, 1.00f);
+    colors[ImGuiCol_TabDimmedSelected]     = ImVec4(0.00f, 0.38f, 0.68f, 1.00f);
+
     colors[ImGuiCol_TableHeaderBg]         = ImVec4(0.18f, 0.18f, 0.18f, 1.00f);
     colors[ImGuiCol_TableBorderStrong]     = border_subtle;
     colors[ImGuiCol_TableBorderLight]      = ImVec4(1.00f, 1.00f, 1.00f, 0.04f);
