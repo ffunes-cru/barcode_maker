@@ -13,8 +13,9 @@ struct BarcodeParams {
     int padd_x = 5;
     int padd_y = 2;
     int padd_txt_y = 2;
-    int res_fact = 4;
-    int comp_fact = 2;
+    int res_fact = 8;
+    int comp_fact = 1;
+    float fractional_scale = 1.0f; // Subpixel fractional scaling (e.g. 0.25x to 3.00x)
 };
 
 struct BarcodeImage {

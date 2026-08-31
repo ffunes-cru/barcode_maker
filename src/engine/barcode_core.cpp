@@ -232,8 +232,12 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
     int code_res_fac = (int)std::floor((double)res_fact / comp_fact);
     if (code_res_fac < 1) code_res_fac = 1;
 
-    int image_width = (code_len + 1 + (params.padd_x * 2)) * code_res_fac;
-    int image_height = (params.height + (params.height_txt - (params.padd_txt_y * 2)) + (params.padd_y * 2)) * res_fact;
+    float frac = params.fractional_scale > 0.05f ? params.fractional_scale : 1.0f;
+    float eff_code_res_fac = (float)code_res_fac * frac;
+    float eff_res_fact = (float)res_fact * frac;
+
+    int image_width = (int)std::round(((float)code_len + 1.0f + ((float)params.padd_x * 2.0f)) * eff_code_res_fac);
+    int image_height = (int)std::round(((float)params.height + ((float)params.height_txt - ((float)params.padd_txt_y * 2.0f)) + ((float)params.padd_y * 2.0f)) * eff_res_fact);
 
     if (image_width < 10 || image_height < 10) {
         result.error_message = "Dimensiones calculadas inválidas";
@@ -257,27 +261,27 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
         result.rgba[rgba_idx + 3] = 255;
     };
 
-    // 3. Draw barcode bars
-    int start_x = params.padd_x * code_res_fac;
-    int end_x = (code_len + params.padd_x) * code_res_fac;
-    int start_y = params.padd_y * res_fact;
-    int end_y = params.height * res_fact;
+    // 3. Draw barcode bars with subpixel precision
+    float start_x = (float)params.padd_x * eff_code_res_fac;
+    float start_y = (float)params.padd_y * eff_res_fact;
+    float end_y = (float)params.height * eff_res_fact;
 
-    for (int x = start_x; x < end_x && x < image_width; x++) {
-        int bit_idx = (int)std::floor((double)(x - start_x) / code_res_fac);
+    for (int x = (int)std::floor(start_x); x < image_width; x++) {
+        int bit_idx = (int)std::floor((double)((float)x - start_x) / eff_code_res_fac);
         if (bit_idx >= 0 && bit_idx < code_len) {
             uint8_t color = (code[bit_idx] == '1') ? 0 : 255;
-            for (int y = start_y; y < end_y && y < image_height; y++) {
+            for (int y = (int)std::floor(start_y); y < (int)std::ceil(end_y) && y < image_height; y++) {
                 set_pixel(x, y, color);
             }
         }
     }
 
     // 4. Draw additional stop bar
-    for (int y = start_y; y < end_y && y < image_height; y++) {
-        for (int x = 0; x < code_res_fac; x++) {
-            set_pixel((params.padd_x + code_len) * code_res_fac + x, y, 0);
-            set_pixel((params.padd_x + code_len) * code_res_fac + x + 1, y, 0);
+    int stop_x_start = (int)std::floor(start_x + (float)code_len * eff_code_res_fac);
+    int stop_x_end = (int)std::ceil(start_x + (float)(code_len + 2) * eff_code_res_fac);
+    for (int y = (int)std::floor(start_y); y < (int)std::ceil(end_y) && y < image_height; y++) {
+        for (int x = stop_x_start; x < stop_x_end && x < image_width; x++) {
+            set_pixel(x, y, 0);
         }
     }
 

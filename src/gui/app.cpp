@@ -392,6 +392,16 @@ void App::render_left_panel() {
         if (ImGui::SliderInt("##PaddTxtY", &params_.padd_txt_y, 0, 15, "%d px")) {
             update_barcode_data();
         }
+
+        ImGui::Text("Escalado Fraccional:");
+        if (ImGui::SliderFloat("##FracScale", &params_.fractional_scale, 0.25f, 3.00f, "%.2fx")) {
+            update_barcode_data();
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("1.0x")) {
+            params_.fractional_scale = 1.0f;
+            update_barcode_data();
+        }
     }
 
     ImGui::Spacing();
@@ -416,6 +426,17 @@ void App::render_left_panel() {
             StripGenerator::GetPresetDimensions(strip_settings_.preset, tw, pw, nm);
             strip_settings_.roll_width_mm = tw;
             strip_settings_.printable_width_mm = pw;
+        }
+
+        if (ImGui::Button("[ Auto-Ajustar a Ancho de Rollo ]", ImVec2(-1, 0))) {
+            float dots_per_mm = strip_settings_.dpi / 25.4f;
+            float printable_w_px = strip_settings_.printable_width_mm * dots_per_mm;
+            params_.fractional_scale = 1.0f;
+            update_barcode_data();
+            if (calculated_width_px_ > 0) {
+                params_.fractional_scale = std::clamp(printable_w_px / (float)calculated_width_px_, 0.25f, 3.00f);
+                update_barcode_data();
+            }
         }
 
         if (input_mode_ == InputMode::Manual) {
