@@ -17,41 +17,31 @@ if (NOT glfw3_FOUND)
     pkg_check_modules(GLFW REQUIRED glfw3)
 endif()
 
-# 2. Engine sources (Shared between CLI and GUI)
+# 2. Shared Engine Sources
 set(ENGINE_SOURCES
     src/engine/barcode_core.cpp
     lib/img/libattopng.c
 )
 
 set(ENGINE_INCLUDES
+    src
     src/engine
+    src/gui
+    src/print
+    src/updater
     lib/img
     ${FREETYPE_INCLUDE_DIRS}
 )
 
-# 3. CLI Executable (code128_maker)
-add_executable(code128_maker
-    src/main_cli.cpp
-    ${ENGINE_SOURCES}
-)
-
-target_include_directories(code128_maker PRIVATE
-    ${ENGINE_INCLUDES}
-)
-
-target_link_libraries(code128_maker PRIVATE
-    ${FREETYPE_LIBRARIES}
-    m
-)
-
-# 4. GUI Executable (code128_gui)
+# 3. Unified Executable: Code128 Studio (GUI + CLI in ONE single binary)
 set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui")
 
-set(GUI_SOURCES
-    src/main_gui.cpp
+set(STUDIO_SOURCES
+    src/main.cpp
     src/gui/app.cpp
     src/gui/strip_preview.cpp
     src/print/print_manager.cpp
+    src/updater/updater.cpp
     ${ENGINE_SOURCES}
     ${IMGUI_DIR}/imgui.cpp
     ${IMGUI_DIR}/imgui_draw.cpp
@@ -61,10 +51,9 @@ set(GUI_SOURCES
     ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
 )
 
-add_executable(code128_gui ${GUI_SOURCES})
+add_executable(code128_studio ${STUDIO_SOURCES})
 
-target_include_directories(code128_gui PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
+target_include_directories(code128_studio PRIVATE
     ${ENGINE_INCLUDES}
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
@@ -72,26 +61,40 @@ target_include_directories(code128_gui PRIVATE
 )
 
 if (TARGET glfw)
-    target_link_libraries(code128_gui PRIVATE glfw)
+    target_link_libraries(code128_studio PRIVATE glfw)
 elseif (glfw3_FOUND)
-    target_link_libraries(code128_gui PRIVATE glfw)
+    target_link_libraries(code128_studio PRIVATE glfw)
 else()
-    target_include_directories(code128_gui PRIVATE ${GLFW_INCLUDE_DIRS})
-    target_link_libraries(code128_gui PRIVATE ${GLFW_LIBRARIES})
+    target_include_directories(code128_studio PRIVATE ${GLFW_INCLUDE_DIRS})
+    target_link_libraries(code128_studio PRIVATE ${GLFW_LIBRARIES})
 endif()
 
-target_link_libraries(code128_gui PRIVATE
+target_link_libraries(code128_studio PRIVATE
     ${FREETYPE_LIBRARIES}
     ${OPENGL_LIBRARIES}
     m
 )
 
 if (WIN32)
-    target_link_libraries(code128_gui PRIVATE winspool)
+    target_link_libraries(code128_studio PRIVATE winspool ws2_32)
+endif()
+
+# 4. Standalone Auto-Updater Executable
+add_executable(code128_updater
+    src/updater/main_updater.cpp
+    src/updater/updater.cpp
+)
+
+target_include_directories(code128_updater PRIVATE
+    src/updater
+)
+
+if (WIN32)
+    target_link_libraries(code128_updater PRIVATE ws2_32)
 endif()
 
 # 5. Installation Rules
-install(TARGETS code128_maker code128_gui
+install(TARGETS code128_studio code128_updater
     RUNTIME DESTINATION bin
 )
 

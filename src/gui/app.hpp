@@ -5,10 +5,8 @@
 #include <memory>
 #include "../engine/barcode_core.hpp"
 #include "../print/print_manager.hpp"
+#include "../updater/updater.hpp"
 #include "strip_preview.hpp"
-
-// Forward declaration for OpenGL texture type
-typedef unsigned int GLuint;
 
 class App {
 public:
@@ -25,9 +23,9 @@ private:
     void render_strip_preview_tab();
     void render_batch_table_tab();
     void render_print_modal();
+    void render_update_modal();
 
-    void update_single_texture();
-    void update_strip_texture();
+    void update_barcode_data();
     void load_batch_file(const std::string& filepath);
     void export_batch();
     void export_current_png();
@@ -42,14 +40,12 @@ private:
     StripSettings strip_settings_;
     PrintJobSettings print_job_settings_;
 
-    // OpenGL Textures for 60fps GPU preview
-    GLuint single_texture_ = 0;
-    BarcodeImage current_single_img_;
-    bool single_dirty_ = true;
-
-    GLuint strip_texture_ = 0;
-    StripImage current_strip_img_;
-    bool strip_dirty_ = true;
+    // Fast GPU state (Bits & Metrics)
+    std::string current_encoded_bits_;
+    int calculated_width_px_ = 0;
+    int calculated_height_px_ = 0;
+    bool is_code_valid_ = true;
+    std::string code_error_msg_;
 
     // UI State & Buffers
     enum class InputMode { Manual, BatchFile };
@@ -64,15 +60,20 @@ private:
     int selected_batch_index_ = 0;
     int batch_array_len_limit_ = 0; // 0 = all
 
-    // Batch Export progress
-    bool is_exporting_batch_ = false;
-    int export_progress_ = 0;
-    int export_total_ = 0;
+    // Pan & Zoom controls for GPU preview
+    float preview_zoom_ = 1.0f;
+    float strip_zoom_ = 1.0f;
+
+    // Status banner
     std::string status_notification_;
     float status_notification_timer_ = 0.0f;
 
-    // Modals & Dialogs
+    // Modals
     bool show_print_dialog_ = false;
-    std::string last_print_result_;
-    bool last_print_success_ = true;
+    bool show_update_dialog_ = false;
+    UpdateInfo update_info_;
+    bool is_checking_update_ = false;
+    bool is_performing_update_ = false;
+    float update_progress_ = 0.0f;
+    std::string update_status_text_;
 };

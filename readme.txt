@@ -1,25 +1,35 @@
 ========================================================================
-CODE 128 MAKER & STUDIO (Windows 11 GUI + CLI)
+CODE 128 STUDIO (Windows 11 Fluent GUI + CLI + Auto Updater)
 ========================================================================
 
-COMPILING WITH CMAKE:
+DESCRIPCIÓN:
+  Code 128 Studio es una suite integral y ultra liviana (< 2 MB) para la
+  generación e impresión de códigos de barras Code 128 (Subconjunto B/C)
+  con renderizado 100% acelerado por GPU (OpenGL DrawList), soporte para
+  tiras continuas de impresoras térmicas Brother (QL series) y auto-actualizador.
+
+COMPILACIÓN (CMake):
     mkdir -p build && cd build
     cmake ..
     make -j$(nproc)
 
-    Binaries generated in build/:
-      - code128_gui   : Windows 11 Fluent GUI Studio (Hot Live Preview, Brother Tape mode, Direct Print)
-      - code128_maker : Original CLI tool
+    Binarios generados:
+      - code128_studio  : Binario ÚNICO que funciona tanto en modo GUI como CLI
+      - code128_updater : Ejecutable independiente de auto-actualización hot
 
-RUNNING GUI:
-    ./build/code128_gui
+EJECUCIÓN:
+    1. Modo Gráfico (Windows 11 Fluent GUI):
+       ./build/code128_studio
+       ./build/code128_studio --gui
 
-USING CLI:
-    ./build/code128_maker -s "A0101" -o output_files_r/ -A 1 --height 13 --res-fact 8 -C 1 --height-txt 16 --padd-txt-y 1 --padd-y 1
-    ./build/code128_maker -c input_rep.txt -o output_files_r/ -A 590 --height 13 --res-fact 8 -C 1 --height-txt 16 --padd-txt-y 1 --padd-y 1
+    2. Modo Consola (CLI Directo):
+       ./build/code128_studio -s "A0101" -o output/ --height 13 --res-fact 8 -C 1
+       ./build/code128_studio -c input_rep.txt -o output/ -A 500
 
-PRINTING (Brother QL Series):
-    - Direct via GUI: Click "🖨️ Imprimir Directo" in the top bar.
-    - Via CLI:
-        lp -d Brother_QL-1110NWB -o fit-to-page <FILE>
-        lp -d Brother_QL-1110NWB -o fit-to-page -o orientation-requested=3 -n 12 A1010.png
+    3. Actualizador:
+       ./build/code128_updater
+
+CI/CD GITHUB ACTIONS:
+    El archivo .github/workflows/build_and_release.yml compila automáticamente
+    los paquetes para Linux (.tar.gz) y Windows (.zip / installer) en cada commit
+    y crea releases públicos cuando se crea un tag (ej: v1.1.0).

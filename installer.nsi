@@ -1,8 +1,8 @@
 ; Installer Attributes
-Name "Code128 Maker"
-OutFile "Code128Maker_Setup.exe"  ; The name of the final installer EXE
-InstallDir "$PROGRAMFILES\Code128Maker" ; Default installation path
-Icon "font.otf" ; Use a resource file as the installer icon
+Name "Code128 Studio"
+OutFile "Code128Studio_Setup.exe"
+InstallDir "$PROGRAMFILES\Code128Studio"
+Icon "font.otf"
 
 ; Pages
 Page directory
@@ -11,47 +11,40 @@ Page instfiles
 ; The actual installation section
 Section "Main Application Files"
 
-  SetOutPath "$INSTDIR" ; Set the output directory to the installation folder
-
-  ; --- Files to Bundle ---
-  ; Note: 'install_package/bin/' is relative to the directory where you run 'makensis'
+  SetOutPath "$INSTDIR"
 
   ; 1. Executable and DLLs
-  File /nonfatal "install_package/bin/code128_gui.exe"
-  File "install_package/bin/code128_maker.exe"
-  File "install_package/bin/freetype.dll" 
-  ; Add other necessary MinGW/GCC runtime DLLs here if using GCC (e.g., libstdc++-6.dll)
+  File "install_package/bin/code128_studio.exe"
+  File /nonfatal "install_package/bin/code128_updater.exe"
+  File /nonfatal "install_package/bin/freetype.dll"
+  File /nonfatal "install_package/bin/glfw3.dll"
 
   ; 2. Resource files
   File "install_package/bin/code128char.txt"
   File "install_package/bin/code128int.txt"
   File "install_package/bin/font.otf"
+  File /nonfatal "install_package/bin/input_rep.txt"
 
   ; Create shortcuts on the Desktop
-  CreateShortCut "$DESKTOP\Code128 Studio.lnk" "$INSTDIR\code128_gui.exe"
-  CreateShortCut "$DESKTOP\Code128 CLI Maker.lnk" "$INSTDIR\code128_maker.exe"
+  CreateShortCut "$DESKTOP\Code128 Studio.lnk" "$INSTDIR\code128_studio.exe"
 
 SectionEnd
 
-; Uninstaller Section (Recommended for cleanuninstallation)
+; Uninstaller Section
 Section "Uninstall"
 
-  ; Remove the main application files
-  Delete "$INSTDIR\code128_gui.exe"
-  Delete "$INSTDIR\code128_maker.exe"
+  Delete "$INSTDIR\code128_studio.exe"
+  Delete "$INSTDIR\code128_updater.exe"
   Delete "$INSTDIR\freetype.dll"
+  Delete "$INSTDIR\glfw3.dll"
   Delete "$INSTDIR\code128char.txt"
   Delete "$INSTDIR\code128int.txt"
   Delete "$INSTDIR\font.otf"
+  Delete "$INSTDIR\input_rep.txt"
 
-  ; Remove the shortcut
   Delete "$DESKTOP\Code128 Studio.lnk"
-  Delete "$DESKTOP\Code128 CLI Maker.lnk"
 
-  ; Remove the install directory if it's empty
   RMDir "$INSTDIR"
-
-  ; Remove the uninstaller itself
   Delete "$INSTDIR\uninstall.exe"
 
 SectionEnd

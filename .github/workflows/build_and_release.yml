@@ -1,0 +1,140 @@
+name: Build & Release Code128 Studio
+
+on:
+  push:
+    branches: [ "**" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+jobs:
+  # ============================================================================
+  # 1. LINUX BUILD
+  # ============================================================================
+  build-linux:
+    name: Build Linux (x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            libfreetype6-dev \
+            libglfw3-dev \
+            libgl1-mesa-dev \
+            libx11-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libcups2-dev \
+            pkg-config
+
+      - name: Configure CMake
+        run: |
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+
+      - name: Build Code128 Studio & Updater
+        run: |
+          cd build
+          make -j$(nproc)
+
+      - name: Package Linux Binary Archive
+        run: |
+          mkdir -p release_linux/bin
+          cp build/code128_studio release_linux/bin/
+          cp build/code128_updater release_linux/bin/
+          cp code128char.txt code128int.txt font.otf input_rep.txt release_linux/bin/
+          cp readme.txt release_linux/
+          cd release_linux
+          tar -czvf ../code128-studio-linux-x86_64.tar.gz *
+          cd ..
+
+      - name: Upload Linux Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: code128-studio-linux-x86_64
+          path: code128-studio-linux-x86_64.tar.gz
+
+  # ============================================================================
+  # 2. WINDOWS BUILD
+  # ============================================================================
+  build-windows:
+    name: Build Windows (x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC & CMake
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Vcpkg Dependencies
+        run: |
+          vcpkg install freetype:x64-windows glfw3:x64-windows opengl:x64-windows
+
+      - name: Configure CMake (MSVC)
+        run: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows ..
+
+      - name: Build Studio & Updater
+        run: |
+          cd build
+          cmake --build . --config Release --parallel
+
+      - name: Package Windows Portable ZIP
+        run: |
+          mkdir -p release_win\bin
+          cp build\Release\code128_studio.exe release_win\bin\
+          cp build\Release\code128_updater.exe release_win\bin\
+          cp code128char.txt,code128int.txt,font.otf,input_rep.txt release_win\bin\
+          cp readme.txt release_win\
+          # Copy runtime DLLs from vcpkg
+          Get-ChildItem "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" | Copy-Item -Destination release_win\bin\
+          Compress-Archive -Path release_win\* -DestinationPath code128-studio-windows-x64.zip
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: code128-studio-windows-x64
+          path: code128-studio-windows-x64.zip
+
+  # ============================================================================
+  # 3. GITHUB RELEASES (On Tag push)
+  # ============================================================================
+  release:
+    name: Create GitHub Release
+    needs: [build-linux, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Linux Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: code128-studio-linux-x86_64
+
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: code128-studio-windows-x64
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            code128-studio-linux-x86_64.tar.gz
+            code128-studio-windows-x64.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
