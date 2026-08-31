@@ -1,58 +1,114 @@
-# 1. Minimum CMake version required for the project
 cmake_minimum_required(VERSION 3.10)
+
+project(Code128Studio C CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(MINGW_DLLS "/usr/x86_64-w64-mingw32/bin/libstdc++-6.dll" "/usr/x86_64-w64-mingw32/bin/libgcc_s_seh-1.dll")
 
-# 2. Name the project
-project(Code128Maker C)
-
-# 3. Find the required external library (FreeType)
+# 1. External dependencies
 find_package(Freetype REQUIRED)
+find_package(OpenGL REQUIRED)
 
-# 4. Define the executable (code128_maker) and list all source files
-add_executable(code128_maker
-    main.c
-    ./lib/img/libattopng.c
+find_package(glfw3 QUIET)
+if (NOT glfw3_FOUND)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(GLFW REQUIRED glfw3)
+endif()
+
+# 2. Engine sources (Shared between CLI and GUI)
+set(ENGINE_SOURCES
+    src/engine/barcode_core.cpp
+    lib/img/libattopng.c
 )
 
-# 5. Specify include directories
-target_include_directories(code128_maker PRIVATE
+set(ENGINE_INCLUDES
+    src/engine
+    lib/img
     ${FREETYPE_INCLUDE_DIRS}
 )
 
-# 6. Specify libraries to link
+# 3. CLI Executable (code128_maker)
+add_executable(code128_maker
+    src/main_cli.cpp
+    ${ENGINE_SOURCES}
+)
+
+target_include_directories(code128_maker PRIVATE
+    ${ENGINE_INCLUDES}
+)
+
 target_link_libraries(code128_maker PRIVATE
-     ${FREETYPE_LIBRARIES}
+    ${FREETYPE_LIBRARIES}
+    m
 )
 
+# 4. GUI Executable (code128_gui)
+set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui")
 
-# --- FIXES FOR INSTALLATION AND RESOURCE COPYING ---
-
-# 7. Explicitly install the executable to the 'bin' directory.
-# This fixes the issue of the executable not being found or not ending up in 'bin'.
-install(TARGETS code128_maker
-    RUNTIME DESTINATION bin # Executable goes into the 'bin' folder
+set(GUI_SOURCES
+    src/main_gui.cpp
+    src/gui/app.cpp
+    src/gui/strip_preview.cpp
+    src/print/print_manager.cpp
+    ${ENGINE_SOURCES}
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
 )
 
-# 8. Resource Files: Ensure they go into the SAME 'bin' directory as the executable.
-# The previous DESTINATION . might have put them in the install root, separating them from the executable.
+add_executable(code128_gui ${GUI_SOURCES})
+
+target_include_directories(code128_gui PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${ENGINE_INCLUDES}
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
+    ${OPENGL_INCLUDE_DIR}
+)
+
+if (TARGET glfw)
+    target_link_libraries(code128_gui PRIVATE glfw)
+elseif (glfw3_FOUND)
+    target_link_libraries(code128_gui PRIVATE glfw)
+else()
+    target_include_directories(code128_gui PRIVATE ${GLFW_INCLUDE_DIRS})
+    target_link_libraries(code128_gui PRIVATE ${GLFW_LIBRARIES})
+endif()
+
+target_link_libraries(code128_gui PRIVATE
+    ${FREETYPE_LIBRARIES}
+    ${OPENGL_LIBRARIES}
+    m
+)
+
+if (WIN32)
+    target_link_libraries(code128_gui PRIVATE winspool)
+endif()
+
+# 5. Installation Rules
+install(TARGETS code128_maker code128_gui
+    RUNTIME DESTINATION bin
+)
+
 set(RESOURCE_FILES
     "code128char.txt"
     "code128int.txt"
     "font.otf"
+    "input_rep.txt"
 )
 
 install(FILES ${RESOURCE_FILES}
-    DESTINATION bin       # <--- CHANGED from DESTINATION . to DESTINATION bin
-    COMPONENT Runtime
-)
-
-install(PROGRAMS ${FREETYPE_LIBRARIES}
     DESTINATION bin
     COMPONENT Runtime
 )
 
-# Copy the MinGW/GCC runtime DLLs
-install(FILES ${MINGW_DLLS}
-    DESTINATION bin
-)
+if (EXISTS "${MINGW_DLLS}")
+    install(FILES ${MINGW_DLLS}
+        DESTINATION bin
+    )
+endif()

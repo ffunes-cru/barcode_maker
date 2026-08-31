@@ -17,6 +17,7 @@ Section "Main Application Files"
   ; Note: 'install_package/bin/' is relative to the directory where you run 'makensis'
 
   ; 1. Executable and DLLs
+  File /nonfatal "install_package/bin/code128_gui.exe"
   File "install_package/bin/code128_maker.exe"
   File "install_package/bin/freetype.dll" 
   ; Add other necessary MinGW/GCC runtime DLLs here if using GCC (e.g., libstdc++-6.dll)
@@ -26,8 +27,9 @@ Section "Main Application Files"
   File "install_package/bin/code128int.txt"
   File "install_package/bin/font.otf"
 
-  ; Create a shortcut on the Desktop
-  CreateShortCut "$DESKTOP\Code128 Maker.lnk" "$INSTDIR\code128_maker.exe"
+  ; Create shortcuts on the Desktop
+  CreateShortCut "$DESKTOP\Code128 Studio.lnk" "$INSTDIR\code128_gui.exe"
+  CreateShortCut "$DESKTOP\Code128 CLI Maker.lnk" "$INSTDIR\code128_maker.exe"
 
 SectionEnd
 
@@ -35,6 +37,7 @@ SectionEnd
 Section "Uninstall"
 
   ; Remove the main application files
+  Delete "$INSTDIR\code128_gui.exe"
   Delete "$INSTDIR\code128_maker.exe"
   Delete "$INSTDIR\freetype.dll"
   Delete "$INSTDIR\code128char.txt"
@@ -42,7 +45,8 @@ Section "Uninstall"
   Delete "$INSTDIR\font.otf"
 
   ; Remove the shortcut
-  Delete "$DESKTOP\Code128 Maker.lnk"
+  Delete "$DESKTOP\Code128 Studio.lnk"
+  Delete "$DESKTOP\Code128 CLI Maker.lnk"
 
   ; Remove the install directory if it's empty
   RMDir "$INSTDIR"
