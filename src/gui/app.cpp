@@ -16,15 +16,14 @@ extern "C" {
 namespace fs = std::filesystem;
 
 App::App() {
-    // Default Brother QL-1110NWB settings
+    // Default Brother QL-1110NWB settings (clean fractional geometry)
     params_.input = "A0100";
-    params_.height = 13;
-    params_.height_txt = 16;
-    params_.padd_x = 5;
-    params_.padd_y = 1;
-    params_.padd_txt_y = 1;
-    params_.res_fact = 8;
-    params_.comp_fact = 1;
+    params_.module_width = 6.0f;       // ~0.5 mm @ 300 DPI
+    params_.bar_height = 90.0f;        // ~7.6 mm @ 300 DPI
+    params_.text_size = 32.0f;         // ~2.7 mm @ 300 DPI
+    params_.quiet_zone_x = 10.0f;      // 10 modules
+    params_.margin_y = 8.0f;           // ~0.7 mm
+    params_.text_gap_y = 8.0f;
 
     strip_settings_.preset = BrotherRollPreset::DK_22205_62mm;
     strip_settings_.roll_width_mm = 62.0f;
@@ -194,13 +193,13 @@ void App::export_batch() {
 }
 
 void App::apply_brother_preset() {
-    params_.height = 13;
-    params_.height_txt = 16;
-    params_.padd_x = 5;
-    params_.padd_y = 1;
-    params_.padd_txt_y = 1;
-    params_.res_fact = 8;
-    params_.comp_fact = 1;
+    params_.module_width = 5.5f;       // ~0.46 mm @ 300 DPI -> Total width ~ 52 mm
+    params_.bar_height = 80.0f;        // ~6.8 mm
+    params_.text_size = 30.0f;         // ~2.5 mm
+    params_.quiet_zone_x = 10.0f;
+    params_.margin_y = 8.0f;
+    params_.text_gap_y = 6.0f;
+
     strip_settings_.preset = BrotherRollPreset::DK_22205_62mm;
     strip_settings_.roll_width_mm = 62.0f;
     strip_settings_.printable_width_mm = 58.0f;
@@ -208,7 +207,7 @@ void App::apply_brother_preset() {
     strip_settings_.repeat_count = 12;
     strip_settings_.label_gap_mm = 4.0f;
     update_barcode_data();
-    status_notification_ = "Preset Brother QL-1110NWB aplicado";
+    status_notification_ = "Preset Brother QL-1110NWB (5.5px mod / 52mm) aplicado";
     status_notification_timer_ = 3.0f;
 }
 
@@ -234,14 +233,13 @@ void App::render_ui() {
     ImGui::Begin("Code128StudioMainWindow", nullptr, window_flags);
     ImGui::PopStyleVar(2);
 
-    // --- Top Action Header (Perfect Auto-Sizing & Alignment) ---
+    // --- Top Action Header (Auto-Sizing & Perfect Alignment) ---
     ImGui::BeginGroup();
     {
         ImGui::TextColored(ImVec4(0.38f, 0.80f, 1.0f, 1.0f), "CODE 128 STUDIO");
         ImGui::SameLine();
         ImGui::TextDisabled("| Brother QL-1110NWB v%s", CODE128_APP_VERSION);
 
-        // Compute button widths accurately so text is never cut off
         float pad_x = ImGui::GetStyle().FramePadding.x * 2.0f;
         float b1_w = ImGui::CalcTextSize("[ Actualizaciones ]").x + pad_x + 8.0f;
         float b2_w = ImGui::CalcTextSize("[ Preset Brother ]").x + pad_x + 8.0f;
@@ -302,7 +300,7 @@ void App::render_ui() {
 
     ImGui::Spacing();
 
-    float left_panel_width = 390.0f;
+    float left_panel_width = 400.0f;
     float right_panel_width = ImGui::GetContentRegionAvail().x - left_panel_width - 12.0f;
 
     ImGui::BeginChild("LeftPanelChild", ImVec2(left_panel_width, 0), true);
@@ -352,54 +350,42 @@ void App::render_left_panel() {
 
     ImGui::Spacing();
 
-    // --- 2. Barcode CLI Parameters ---
-    if (ImGui::CollapsingHeader("2. Parametros CLI", ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::Text("Factor Resolucion (-R):");
-        if (ImGui::SliderInt("##ResFact", &params_.res_fact, 1, 16, "%dx")) {
-            if (params_.comp_fact > params_.res_fact) params_.comp_fact = params_.res_fact;
+    // --- 2. Fractional Barcode Parameters ---
+    if (ImGui::CollapsingHeader("2. Geometria y Escalado Fraccional", ImGuiTreeNodeFlags_DefaultOpen)) {
+        float mod_mm = params_.module_width / (300.0f / 25.4f);
+        ImGui::Text("Ancho de Modulo (X-Dim): %.2f px (%.2f mm)", params_.module_width, mod_mm);
+        if (ImGui::SliderFloat("##ModWidth", &params_.module_width, 1.0f, 16.0f, "%.2f px")) {
             update_barcode_data();
         }
 
-        ImGui::Text("Factor Compresion (-C):");
-        if (ImGui::SliderInt("##CompFact", &params_.comp_fact, 1, params_.res_fact, "%dx")) {
+        float bar_h_mm = params_.bar_height / (300.0f / 25.4f);
+        ImGui::Text("Altura de Barras: %.1f px (%.1f mm)", params_.bar_height, bar_h_mm);
+        if (ImGui::SliderFloat("##BarHeight", &params_.bar_height, 10.0f, 250.0f, "%.1f px")) {
             update_barcode_data();
         }
 
-        ImGui::Text("Altura de Barras (-H):");
-        if (ImGui::SliderInt("##HeightH", &params_.height, 5, 60, "%d px")) {
+        float txt_mm = params_.text_size / (300.0f / 25.4f);
+        ImGui::Text("Tamano de Texto: %.1f px (%.1f mm)", params_.text_size, txt_mm);
+        if (ImGui::SliderFloat("##TextSize", &params_.text_size, 8.0f, 60.0f, "%.1f px")) {
             update_barcode_data();
         }
 
-        ImGui::Text("Altura de Texto (-T):");
-        if (ImGui::SliderInt("##HeightT", &params_.height_txt, 4, 35, "%d px")) {
+        float qz_mm = (params_.quiet_zone_x * params_.module_width) / (300.0f / 25.4f);
+        ImGui::Text("Quiet Zone (Margen X): %.1f mod (%.1f mm)", params_.quiet_zone_x, qz_mm);
+        if (ImGui::SliderFloat("##QuietZone", &params_.quiet_zone_x, 2.0f, 30.0f, "%.1f mod")) {
+            update_barcode_data();
+        }
+        if (params_.quiet_zone_x < 10.0f) {
+            ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f), "[!] Quiet zone recomendada: >= 10 modulos");
+        }
+
+        ImGui::Text("Margen Superior / Inferior (Y):");
+        if (ImGui::SliderFloat("##MarginY", &params_.margin_y, 0.0f, 30.0f, "%.1f px")) {
             update_barcode_data();
         }
 
-        ImGui::Text("Margen X / Quiet Zone (-X):");
-        if (ImGui::SliderInt("##PaddX", &params_.padd_x, 0, 30, "%d px")) {
-            update_barcode_data();
-        }
-        if (params_.padd_x < 5) {
-            ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f), "[!] Quiet zone baja (< 5): riesgo de no lectura");
-        }
-
-        ImGui::Text("Margen Y (-Y):");
-        if (ImGui::SliderInt("##PaddY", &params_.padd_y, 0, 15, "%d px")) {
-            update_barcode_data();
-        }
-
-        ImGui::Text("Margen Texto Y (-y):");
-        if (ImGui::SliderInt("##PaddTxtY", &params_.padd_txt_y, 0, 15, "%d px")) {
-            update_barcode_data();
-        }
-
-        ImGui::Text("Escalado Fraccional:");
-        if (ImGui::SliderFloat("##FracScale", &params_.fractional_scale, 0.25f, 3.00f, "%.2fx")) {
-            update_barcode_data();
-        }
-        ImGui::SameLine();
-        if (ImGui::SmallButton("1.0x")) {
-            params_.fractional_scale = 1.0f;
+        ImGui::Text("Espacio Barras-Texto (Y):");
+        if (ImGui::SliderFloat("##TextGapY", &params_.text_gap_y, 0.0f, 30.0f, "%.1f px")) {
             update_barcode_data();
         }
     }
@@ -431,10 +417,14 @@ void App::render_left_panel() {
         if (ImGui::Button("[ Auto-Ajustar a Ancho de Rollo ]", ImVec2(-1, 0))) {
             float dots_per_mm = strip_settings_.dpi / 25.4f;
             float printable_w_px = strip_settings_.printable_width_mm * dots_per_mm;
-            params_.fractional_scale = 1.0f;
-            update_barcode_data();
-            if (calculated_width_px_ > 0) {
-                params_.fractional_scale = std::clamp(printable_w_px / (float)calculated_width_px_, 0.25f, 3.00f);
+            int code_len = (int)current_encoded_bits_.length();
+            if (code_len > 0) {
+                float total_mods = (float)code_len + 2.0f + (params_.quiet_zone_x * 2.0f);
+                if (!strip_settings_.rotate_90) {
+                    params_.module_width = std::clamp(printable_w_px / total_mods, 1.0f, 16.0f);
+                } else {
+                    params_.bar_height = std::clamp(printable_w_px - (params_.margin_y * 2.0f + params_.text_size + params_.text_gap_y), 20.0f, 300.0f);
+                }
                 update_barcode_data();
             }
         }
@@ -509,7 +499,7 @@ void App::render_live_preview_tab() {
         return;
     }
 
-    // Professional Clean Metric Card (cm and mm accurate)
+    // Professional Clean Metric Card
     ImGui::BeginChild("MetricSummaryCard", ImVec2(0, 48), true);
     {
         float mm_w = (float)calculated_width_px_ / (300.0f / 25.4f);
@@ -524,7 +514,7 @@ void App::render_live_preview_tab() {
         ImGui::NextColumn();
         ImGui::Text("Medida: %.1f x %.1f cm (%.1f mm)", cm_w, cm_h, mm_w);
         ImGui::NextColumn();
-        ImGui::Text("Quiet Zone: %d px (%d x %d)", params_.padd_x, params_.padd_x * params_.res_fact, params_.padd_y * params_.res_fact);
+        ImGui::Text("Modulo X: %.2f px (%.2f mm)", params_.module_width, params_.module_width / (300.0f / 25.4f));
         ImGui::Columns(1);
     }
     ImGui::EndChild();
@@ -540,17 +530,12 @@ void App::render_live_preview_tab() {
 
     ImGui::Spacing();
 
-    // --- GPU Direct DrawList Canvas (NO Unwanted Top Bar Line) ---
+    // --- GPU Direct DrawList Canvas with Unified Fractional Math ---
     ImVec2 avail = ImGui::GetContentRegionAvail();
     ImGui::BeginChild("GPUCanvasChild", ImVec2(avail.x, avail.y - 30), true, ImGuiWindowFlags_HorizontalScrollbar);
     {
         ImDrawList* draw_list = ImGui::GetWindowDrawList();
         ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
-
-        int comp_fact = params_.comp_fact <= 0 ? 1 : params_.comp_fact;
-        int res_fact = params_.res_fact <= 0 ? 1 : params_.res_fact;
-        int code_res_fac = (int)std::floor((double)res_fact / comp_fact);
-        if (code_res_fac < 1) code_res_fac = 1;
 
         float scale = preview_zoom_;
         float barcode_w = (float)calculated_width_px_ * scale;
@@ -566,33 +551,33 @@ void App::render_live_preview_tab() {
         draw_list->AddRectFilled(card_min, card_max, IM_COL32(255, 255, 255, 255), 2.0f);
         draw_list->AddRect(card_min, card_max, IM_COL32(90, 90, 90, 255), 2.0f);
 
-        // Draw barcode bars directly in GPU
-        float bar_start_x = card_min.x + (float)(params_.padd_x * code_res_fac) * scale;
-        float bar_y0 = card_min.y + (float)(params_.padd_y * res_fact) * scale;
-        float bar_y1 = card_min.y + (float)(params_.height * res_fact) * scale;
-        float module_w = (float)code_res_fac * scale;
+        // Draw barcode bars directly in GPU using unified float module_width
+        float mod_w = params_.module_width * scale;
+        float bar_start_x = card_min.x + (params_.quiet_zone_x * mod_w);
+        float bar_y0 = card_min.y + (params_.margin_y * scale);
+        float bar_y1 = bar_y0 + (params_.bar_height * scale);
 
         int code_len = (int)current_encoded_bits_.length();
         for (int i = 0; i < code_len; i++) {
             if (current_encoded_bits_[i] == '1') {
-                float bx0 = bar_start_x + (float)i * module_w;
-                float bx1 = bx0 + module_w;
+                float bx0 = bar_start_x + (float)i * mod_w;
+                float bx1 = bx0 + mod_w;
                 draw_list->AddRectFilled(ImVec2(bx0, bar_y0), ImVec2(bx1, bar_y1), IM_COL32(0, 0, 0, 255));
             }
         }
 
-        // Additional stop bar
-        float stop_x0 = bar_start_x + (float)code_len * module_w;
-        float stop_x1 = stop_x0 + module_w * 2.0f;
+        // Additional stop bar (2 modules wide)
+        float stop_x0 = bar_start_x + (float)code_len * mod_w;
+        float stop_x1 = stop_x0 + (2.0f * mod_w);
         draw_list->AddRectFilled(ImVec2(stop_x0, bar_y0), ImVec2(stop_x1, bar_y1), IM_COL32(0, 0, 0, 255));
 
         // High-Quality Crisp Text Rendering
         ImFont* text_font = font_barcode_ ? font_barcode_ : ImGui::GetFont();
-        float target_font_size = (float)std::max(12, (params_.height_txt - params_.padd_txt_y) * res_fact) * scale;
+        float target_font_size = params_.text_size * scale;
         
         ImVec2 text_size = text_font->CalcTextSizeA(target_font_size, FLT_MAX, 0.0f, params_.input.c_str());
         float text_x = card_min.x + (barcode_w - text_size.x) * 0.5f;
-        float text_y = card_min.y + (float)(params_.height + params_.padd_txt_y) * res_fact * scale;
+        float text_y = bar_y1 + (params_.text_gap_y * scale);
 
         draw_list->AddText(text_font, target_font_size, ImVec2(text_x, text_y),
                            IM_COL32(0, 0, 0, 255), params_.input.c_str());
@@ -628,8 +613,6 @@ void App::render_strip_preview_tab() {
     float lead_px = strip_settings_.leading_margin_mm * dots_per_mm;
     float trail_px = strip_settings_.trailing_margin_mm * dots_per_mm;
 
-    // Dimensions based on rotation:
-    // If rotate_90 is true: label width on tape is single_h, label height along roll is single_w!
     float label_on_tape_w = strip_settings_.rotate_90 ? single_h : single_w;
     float label_on_tape_h = strip_settings_.rotate_90 ? single_w : single_h;
 
@@ -639,7 +622,6 @@ void App::render_strip_preview_tab() {
     float total_strip_cm = total_strip_mm / 10.0f;
     float tape_w_cm = tape_w_mm / 10.0f;
 
-    // Check if barcode exceeds tape width
     bool barcode_exceeds_tape = (label_on_tape_w > tape_width_px);
     float barcode_mm_w = label_on_tape_w / dots_per_mm;
 
@@ -653,7 +635,7 @@ void App::render_strip_preview_tab() {
         ImGui::Text("Etiquetas: %zu", labels_to_render.size());
         ImGui::NextColumn();
         if (barcode_exceeds_tape) {
-            ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "[!] Excede Ancho Rollo");
+            ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "[!] Excede Rollo (%.1f mm)", barcode_mm_w);
         } else {
             ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Margen OK (%.1f mm)", (tape_w_mm - barcode_mm_w) * 0.5f);
         }
@@ -664,7 +646,7 @@ void App::render_strip_preview_tab() {
     if (barcode_exceeds_tape) {
         ImGui::Spacing();
         ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f),
-            "[!] Aviso: El codigo mide %.1f mm y excede el rollo de %.1f mm. Activa 'Rotar 90 deg' o usa el rollo de 103.6 mm.",
+            "[!] Aviso: El codigo mide %.1f mm y excede el rollo de %.1f mm. Activa 'Rotar 90 deg' o presiona 'Auto-Ajustar a Ancho de Rollo'.",
             barcode_mm_w, tape_w_mm);
     }
 
@@ -684,7 +666,7 @@ void App::render_strip_preview_tab() {
 
     ImGui::Spacing();
 
-    // --- GPU Vertical Tape Roll Canvas (Supports 90° Rotation & Proper Margins) ---
+    // --- GPU Vertical Tape Roll Canvas (Unified Exact Subpixel Coordinates) ---
     ImVec2 avail = ImGui::GetContentRegionAvail();
     ImGui::BeginChild("GPUVerticalStripCanvas", ImVec2(avail.x, avail.y - 10), true, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     {
@@ -699,84 +681,79 @@ void App::render_strip_preview_tab() {
         ImVec2 tape_min = ImVec2(canvas_pos.x + offset_x, canvas_pos.y + 20.0f);
         ImVec2 tape_max = ImVec2(tape_min.x + tape_render_w, tape_min.y + tape_render_h);
 
-        // 1. Draw Continuous Paper Roll (Paper White)
+        // 1. Draw Continuous Paper Roll
         draw_list->AddRectFilled(tape_min, tape_max, IM_COL32(252, 252, 252, 255), 3.0f);
         draw_list->AddRect(tape_min, tape_max, IM_COL32(110, 110, 110, 255), 3.0f, 0, 1.0f);
 
-        // 2. Draw Printable Margins guideline (subtle dashed line)
+        // 2. Draw Printable Margins
         float margin_side_px = ((tape_w_mm - print_w_mm) * 0.5f) * dots_per_mm * scale;
         if (margin_side_px > 1.0f) {
             draw_list->AddLine(ImVec2(tape_min.x + margin_side_px, tape_min.y),
-                               ImVec2(tape_min.x + margin_side_px, tape_max.y), IM_COL32(200, 200, 200, 150), 1.0f);
+                               ImVec2(tape_min.x + margin_side_px, tape_max.y), IM_COL32(210, 210, 210, 160), 1.0f);
             draw_list->AddLine(ImVec2(tape_max.x - margin_side_px, tape_min.y),
-                               ImVec2(tape_max.x - margin_side_px, tape_max.y), IM_COL32(200, 200, 200, 150), 1.0f);
+                               ImVec2(tape_max.x - margin_side_px, tape_max.y), IM_COL32(210, 210, 210, 160), 1.0f);
         }
 
-        // 3. Render labels vertically stacked downwards
-        int comp_fact = params_.comp_fact <= 0 ? 1 : params_.comp_fact;
-        int res_fact = params_.res_fact <= 0 ? 1 : params_.res_fact;
-        int code_res_fac = (int)std::floor((double)res_fact / comp_fact);
-        if (code_res_fac < 1) code_res_fac = 1;
-
-        float cur_y = tape_min.y + lead_px * scale;
+        // 3. Render labels vertically stacked downwards with 100% exact math
+        float cur_y = tape_min.y + (lead_px * scale);
         ImFont* text_font = font_barcode_ ? font_barcode_ : ImGui::GetFont();
-        float target_font_size = (float)std::max(10, (params_.height_txt - params_.padd_txt_y) * res_fact) * scale;
+        float target_font_size = params_.text_size * scale;
         int code_len = (int)current_encoded_bits_.length();
-        float module_w = (float)code_res_fac * scale;
+        float mod_w = params_.module_width * scale;
 
         for (size_t l = 0; l < labels_to_render.size(); l++) {
             float label_y0 = cur_y;
-            float label_y1 = label_y0 + label_on_tape_h * scale;
+            float label_y1 = label_y0 + (label_on_tape_h * scale);
 
             if (!strip_settings_.rotate_90) {
-                // --- Normal Horizontal Barcode (Centered Horizontally) ---
-                float label_x0 = tape_min.x + ((tape_render_w - single_w * scale) * 0.5f);
-                float bar_start_x = label_x0 + (float)(params_.padd_x * code_res_fac) * scale;
-                float bar_y0 = label_y0 + (float)(params_.padd_y * res_fact) * scale;
-                float bar_y1 = label_y0 + (float)(params_.height * res_fact) * scale;
+                // --- Normal Horizontal Barcode ---
+                float label_x0 = tape_min.x + ((tape_render_w - (single_w * scale)) * 0.5f);
+                float bar_start_x = label_x0 + (params_.quiet_zone_x * mod_w);
+                float bar_y0 = label_y0 + (params_.margin_y * scale);
+                float bar_y1 = bar_y0 + (params_.bar_height * scale);
 
                 for (int i = 0; i < code_len; i++) {
                     if (current_encoded_bits_[i] == '1') {
-                        float bx0 = bar_start_x + (float)i * module_w;
-                        float bx1 = bx0 + module_w;
+                        float bx0 = bar_start_x + (float)i * mod_w;
+                        float bx1 = bx0 + mod_w;
                         draw_list->AddRectFilled(ImVec2(bx0, bar_y0), ImVec2(bx1, bar_y1), IM_COL32(0, 0, 0, 255));
                     }
                 }
 
                 // Stop bar
-                float stop_x0 = bar_start_x + (float)code_len * module_w;
-                float stop_x1 = stop_x0 + module_w * 2.0f;
+                float stop_x0 = bar_start_x + (float)code_len * mod_w;
+                float stop_x1 = stop_x0 + (2.0f * mod_w);
                 draw_list->AddRectFilled(ImVec2(stop_x0, bar_y0), ImVec2(stop_x1, bar_y1), IM_COL32(0, 0, 0, 255));
 
                 // Crisp Text
                 ImVec2 text_size = text_font->CalcTextSizeA(target_font_size, FLT_MAX, 0.0f, labels_to_render[l].c_str());
-                float text_x = label_x0 + (single_w * scale - text_size.x) * 0.5f;
-                float text_y = label_y0 + (float)(params_.height + params_.padd_txt_y) * res_fact * scale;
+                float text_x = label_x0 + ((single_w * scale - text_size.x) * 0.5f);
+                float text_y = bar_y1 + (params_.text_gap_y * scale);
 
                 draw_list->AddText(text_font, target_font_size, ImVec2(text_x, text_y),
                                    IM_COL32(0, 0, 0, 255), labels_to_render[l].c_str());
             } else {
-                // --- Rotated 90° Barcode (Runs Along the Tape) ---
-                float label_x0 = tape_min.x + ((tape_render_w - single_h * scale) * 0.5f);
-                float bar_start_y = label_y0 + (float)(params_.padd_x * code_res_fac) * scale;
-                float bar_x0 = label_x0 + (float)(params_.padd_y * res_fact) * scale;
-                float bar_x1 = label_x0 + (float)(params_.height * res_fact) * scale;
+                // --- Rotated 90° Barcode ---
+                float label_x0 = tape_min.x + ((tape_render_w - (single_h * scale)) * 0.5f);
+                float bar_start_y = label_y0 + (params_.quiet_zone_x * mod_w);
+                float bar_x0 = label_x0 + (params_.margin_y * scale);
+                float bar_x1 = bar_x0 + (params_.bar_height * scale);
 
                 for (int i = 0; i < code_len; i++) {
                     if (current_encoded_bits_[i] == '1') {
-                        float by0 = bar_start_y + (float)i * module_w;
-                        float by1 = by0 + module_w;
+                        float by0 = bar_start_y + (float)i * mod_w;
+                        float by1 = by0 + mod_w;
                         draw_list->AddRectFilled(ImVec2(bar_x0, by0), ImVec2(bar_x1, by1), IM_COL32(0, 0, 0, 255));
                     }
                 }
 
                 // Stop bar
-                float stop_y0 = bar_start_y + (float)code_len * module_w;
-                float stop_y1 = stop_y0 + module_w * 2.0f;
+                float stop_y0 = bar_start_y + (float)code_len * mod_w;
+                float stop_y1 = stop_y0 + (2.0f * mod_w);
                 draw_list->AddRectFilled(ImVec2(bar_x0, stop_y0), ImVec2(bar_x1, stop_y1), IM_COL32(0, 0, 0, 255));
 
-                // Text drawn alongside rotated barcode
-                float text_x = label_x0 + (float)(params_.height + params_.padd_txt_y) * res_fact * scale;
+                // Rotated text alongside bars
+                float text_x = bar_x1 + (params_.text_gap_y * scale);
                 float text_y = label_y0 + (label_on_tape_h * scale * 0.35f);
 
                 draw_list->AddText(text_font, target_font_size, ImVec2(text_x, text_y),

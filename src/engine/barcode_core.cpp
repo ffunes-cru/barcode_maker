@@ -1,15 +1,15 @@
 #include "barcode_core.hpp"
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <cmath>
-#include <algorithm>
 #include <filesystem>
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
-#include FT_GLYPH_H
 
 extern "C" {
 #include "../../lib/img/libattopng.h"
@@ -20,141 +20,6 @@ namespace fs = std::filesystem;
 BarcodeEngine::BarcodeEngine() = default;
 
 BarcodeEngine::~BarcodeEngine() {
-    cleanup_freetype();
-}
-
-std::string BarcodeEngine::find_file(const std::string& filename) {
-    std::vector<std::string> search_dirs = {
-        resource_dir_,
-        ".",
-        "..",
-        "./bin",
-        "../bin",
-        "../../",
-        "/usr/local/share/code128_maker",
-        "/usr/share/code128_maker"
-    };
-
-    for (const auto& dir : search_dirs) {
-        if (dir.empty()) continue;
-        fs::path p = fs::path(dir) / filename;
-        if (fs::exists(p)) {
-            return p.string();
-        }
-    }
-    return "";
-}
-
-bool BarcodeEngine::init(const std::string& resource_dir) {
-    resource_dir_ = resource_dir;
-
-    if (!load_dictionaries()) {
-        std::cerr << "[BarcodeEngine] Error loading dictionaries\n";
-        return false;
-    }
-
-    if (!init_freetype()) {
-        std::cerr << "[BarcodeEngine] Error initializing FreeType\n";
-        return false;
-    }
-
-    initialized_ = true;
-    return true;
-}
-
-bool BarcodeEngine::load_dictionaries() {
-    std::string char_file = find_file("code128char.txt");
-    std::string int_file = find_file("code128int.txt");
-
-    if (char_file.empty() || int_file.empty()) {
-        std::cerr << "[BarcodeEngine] Could not locate code128char.txt or code128int.txt\n";
-        return false;
-    }
-
-    dict_char_.clear();
-    dict_int_.clear();
-
-    // Parse code128char.txt
-    {
-        std::ifstream file(char_file);
-        if (!file.is_open()) return false;
-        std::string line;
-        while (std::getline(file, line)) {
-            if (line.empty()) continue;
-            std::stringstream ss(line);
-            std::string val_str, ascii_str, pattern;
-            if (std::getline(ss, val_str, ',') &&
-                std::getline(ss, ascii_str, ',') &&
-                std::getline(ss, pattern)) {
-                
-                Code128Entry entry;
-                entry.value = std::stoi(val_str);
-                entry.ascii = ascii_str.empty() ? ' ' : ascii_str[0];
-                // Trim pattern
-                pattern.erase(std::remove_if(pattern.begin(), pattern.end(), ::isspace), pattern.end());
-                entry.pattern = pattern;
-
-                dict_char_[entry.ascii] = entry;
-            }
-        }
-    }
-
-    // Parse code128int.txt
-    {
-        std::ifstream file(int_file);
-        if (!file.is_open()) return false;
-        std::string line;
-        while (std::getline(file, line)) {
-            if (line.empty()) continue;
-            std::stringstream ss(line);
-            std::string val_str, ascii_str, pattern;
-            if (std::getline(ss, val_str, ',') &&
-                std::getline(ss, ascii_str, ',') &&
-                std::getline(ss, pattern)) {
-                
-                Code128Entry entry;
-                entry.value = std::stoi(val_str);
-                entry.ascii = ascii_str.empty() ? ' ' : ascii_str[0];
-                pattern.erase(std::remove_if(pattern.begin(), pattern.end(), ::isspace), pattern.end());
-                entry.pattern = pattern;
-
-                dict_int_[entry.value] = entry;
-            }
-        }
-    }
-
-    return (!dict_char_.empty() && !dict_int_.empty());
-}
-
-bool BarcodeEngine::init_freetype() {
-    cleanup_freetype();
-
-    FT_Library lib = nullptr;
-    if (FT_Init_FreeType(&lib)) {
-        return false;
-    }
-    ft_library_ = lib;
-
-    font_path_ = find_file("font.otf");
-    if (font_path_.empty()) {
-        font_path_ = find_file("font.ttf");
-    }
-    if (font_path_.empty()) {
-        std::cerr << "[BarcodeEngine] font.otf not found\n";
-        return false;
-    }
-
-    FT_Face face = nullptr;
-    if (FT_New_Face((FT_Library)ft_library_, font_path_.c_str(), 0, &face)) {
-        std::cerr << "[BarcodeEngine] Failed to load font face from " << font_path_ << "\n";
-        return false;
-    }
-    ft_face_ = face;
-
-    return true;
-}
-
-void BarcodeEngine::cleanup_freetype() {
     if (ft_face_) {
         FT_Done_Face((FT_Face)ft_face_);
         ft_face_ = nullptr;
@@ -165,20 +30,127 @@ void BarcodeEngine::cleanup_freetype() {
     }
 }
 
+bool BarcodeEngine::init(const std::string& resource_dir) {
+    resource_dir_ = resource_dir;
+    if (!load_dictionaries()) {
+        std::cerr << "Advertencia: No se pudieron cargar los diccionarios desde '" << resource_dir_ << "'\n";
+    }
+    if (!init_freetype()) {
+        std::cerr << "Advertencia: No se pudo inicializar FreeType / fuentes.\n";
+    }
+    initialized_ = true;
+    return true;
+}
+
+bool BarcodeEngine::load_dictionaries() {
+    dict_char_.clear();
+    dict_int_.clear();
+
+    auto parse_file = [&](const std::string& path) {
+        if (!fs::exists(path)) return false;
+        std::ifstream file(path);
+        if (!file.is_open()) return false;
+        std::string line;
+        while (std::getline(file, line)) {
+            if (line.empty() || line[0] == '#') continue;
+            size_t c1 = line.find(',');
+            if (c1 != std::string::npos) {
+                size_t c2 = line.find(',', c1 + 1);
+                if (c2 != std::string::npos) {
+                    try {
+                        int val = std::stoi(line.substr(0, c1));
+                        char c = line[c1 + 1];
+                        std::string pat = line.substr(c2 + 1);
+                        while (!pat.empty() && (pat.back() == '\r' || pat.back() == '\n' || pat.back() == ' ')) pat.pop_back();
+                        Code128Entry entry{val, c, pat};
+                        dict_char_[c] = entry;
+                        dict_int_[val] = entry;
+                    } catch (...) {}
+                }
+            } else {
+                std::istringstream ss(line);
+                int val; char c; std::string pat;
+                if (ss >> val >> c >> pat) {
+                    Code128Entry entry{val, c, pat};
+                    dict_char_[c] = entry;
+                    dict_int_[val] = entry;
+                }
+            }
+        }
+        return true;
+    };
+
+    std::vector<std::string> prefixes = {"", "../", "../../", resource_dir_ + "/", resource_dir_ + "/../"};
+    for (const auto& pfx : prefixes) {
+        parse_file(pfx + "code128char.txt");
+        parse_file(pfx + "code128int.txt");
+        parse_file(pfx + "dicc/code128_char.dic");
+        parse_file(pfx + "dicc/code128_int.dic");
+    }
+
+    if (dict_int_.find(104) != dict_int_.end()) {
+        dict_char_['#'] = dict_int_[104];
+    } else {
+        dict_char_['#'] = Code128Entry{104, '#', "11010010000"};
+        dict_int_[104] = dict_char_['#'];
+    }
+
+    if (dict_int_.find(106) != dict_int_.end()) {
+        dict_char_['$'] = dict_int_[106];
+    } else {
+        dict_char_['$'] = Code128Entry{106, '$', "11000111010"};
+        dict_int_[106] = dict_char_['$'];
+    }
+
+    return !dict_char_.empty() && !dict_int_.empty();
+}
+
+bool BarcodeEngine::init_freetype() {
+    if (FT_Init_FreeType((FT_Library*)&ft_library_)) {
+        std::cerr << "Error al inicializar FreeType library\n";
+        return false;
+    }
+
+    std::vector<std::string> font_candidates = {
+        resource_dir_ + "/font.otf",
+        resource_dir_ + "/../font.otf",
+        "font.otf",
+        "../font.otf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+        "C:\\Windows\\Fonts\\segoeui.ttf"
+    };
+
+    for (const auto& font_path : font_candidates) {
+        if (fs::exists(font_path)) {
+            if (FT_New_Face((FT_Library)ft_library_, font_path.c_str(), 0, (FT_Face*)&ft_face_) == 0) {
+                return true;
+            }
+        }
+    }
+
+    std::cerr << "Aviso: No se encontró ningún archivo de fuente TTF/OTF.\n";
+    return false;
+}
+
 bool BarcodeEngine::validate_text(const std::string& text, std::string& out_error) const {
     if (text.empty()) {
         out_error = "El texto no puede estar vacío";
         return false;
     }
-    if (dict_char_.find('#') == dict_char_.end() || dict_char_.find('$') == dict_char_.end()) {
-        out_error = "Diccionario no inicializado (faltan START/STOP)";
+
+    if (dict_char_.empty()) {
+        out_error = "Diccionario Code128 no cargado";
         return false;
     }
 
-    for (char c : text) {
+    for (size_t i = 0; i < text.length(); i++) {
+        char c = text[i];
         char lookup = (c == ' ') ? 'b' : c;
         if (dict_char_.find(lookup) == dict_char_.end()) {
-            out_error = std::string("Carácter no soportado en Code128: '") + c + "'";
+            out_error = std::string("Carácter no soportado en Code 128: '") + c + "'";
             return false;
         }
     }
@@ -187,6 +159,7 @@ bool BarcodeEngine::validate_text(const std::string& text, std::string& out_erro
 
 BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
     BarcodeImage result;
+    result.valid = false;
 
     if (!initialized_) {
         result.error_message = "Motor no inicializado";
@@ -199,7 +172,7 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
         return result;
     }
 
-    // 1. Build Code128 binary string
+    // 1. Build Code128 binary pattern
     const auto& start_entry = dict_char_.at('#');
     const auto& stop_entry = dict_char_.at('$');
 
@@ -220,24 +193,19 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
         result.error_message = "Error calculando dígito de control";
         return result;
     }
+
     code += dict_int_.at(check_val).pattern;
     code += stop_entry.pattern;
-
     result.encoded_bits = code;
+
+    // 2. Continuous Fractional Geometry Calculations
+    float mod_w = params.module_width > 0.1f ? params.module_width : 1.0f;
     int code_len = (int)code.length();
 
-    // 2. Geometry calculations
-    int comp_fact = params.comp_fact <= 0 ? 1 : params.comp_fact;
-    int res_fact = params.res_fact <= 0 ? 1 : params.res_fact;
-    int code_res_fac = (int)std::floor((double)res_fact / comp_fact);
-    if (code_res_fac < 1) code_res_fac = 1;
-
-    float frac = params.fractional_scale > 0.05f ? params.fractional_scale : 1.0f;
-    float eff_code_res_fac = (float)code_res_fac * frac;
-    float eff_res_fact = (float)res_fact * frac;
-
-    int image_width = (int)std::round(((float)code_len + 1.0f + ((float)params.padd_x * 2.0f)) * eff_code_res_fac);
-    int image_height = (int)std::round(((float)params.height + ((float)params.height_txt - ((float)params.padd_txt_y * 2.0f)) + ((float)params.padd_y * 2.0f)) * eff_res_fact);
+    // Total modules across = left quiet zone + code modules + 2 stop modules + right quiet zone
+    float total_modules = (float)code_len + 2.0f + (params.quiet_zone_x * 2.0f);
+    int image_width = (int)std::ceil(total_modules * mod_w);
+    int image_height = (int)std::ceil((params.margin_y * 2.0f) + params.bar_height + params.text_gap_y + params.text_size);
 
     if (image_width < 10 || image_height < 10) {
         result.error_message = "Dimensiones calculadas inválidas";
@@ -261,26 +229,28 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
         result.rgba[rgba_idx + 3] = 255;
     };
 
-    // 3. Draw barcode bars with subpixel precision
-    float start_x = (float)params.padd_x * eff_code_res_fac;
-    float start_y = (float)params.padd_y * eff_res_fact;
-    float end_y = (float)params.height * eff_res_fact;
+    // 3. Draw barcode bars with exact fractional coordinates
+    float start_x = params.quiet_zone_x * mod_w;
+    float start_y = params.margin_y;
+    float end_y = params.margin_y + params.bar_height;
 
-    for (int x = (int)std::floor(start_x); x < image_width; x++) {
-        int bit_idx = (int)std::floor((double)((float)x - start_x) / eff_code_res_fac);
-        if (bit_idx >= 0 && bit_idx < code_len) {
-            uint8_t color = (code[bit_idx] == '1') ? 0 : 255;
-            for (int y = (int)std::floor(start_y); y < (int)std::ceil(end_y) && y < image_height; y++) {
-                set_pixel(x, y, color);
+    for (int i = 0; i < code_len; i++) {
+        if (code[i] == '1') {
+            int x0 = (int)std::floor(start_x + (float)i * mod_w);
+            int x1 = (int)std::ceil(start_x + (float)(i + 1) * mod_w);
+            for (int x = x0; x < x1 && x < image_width; x++) {
+                for (int y = (int)std::floor(start_y); y < (int)std::ceil(end_y) && y < image_height; y++) {
+                    set_pixel(x, y, 0);
+                }
             }
         }
     }
 
-    // 4. Draw additional stop bar
-    int stop_x_start = (int)std::floor(start_x + (float)code_len * eff_code_res_fac);
-    int stop_x_end = (int)std::ceil(start_x + (float)(code_len + 2) * eff_code_res_fac);
-    for (int y = (int)std::floor(start_y); y < (int)std::ceil(end_y) && y < image_height; y++) {
-        for (int x = stop_x_start; x < stop_x_end && x < image_width; x++) {
+    // 4. Draw additional stop bar (2 modules wide)
+    int stop_x0 = (int)std::floor(start_x + (float)code_len * mod_w);
+    int stop_x1 = (int)std::ceil(start_x + (float)(code_len + 2) * mod_w);
+    for (int x = stop_x0; x < stop_x1 && x < image_width; x++) {
+        for (int y = (int)std::floor(start_y); y < (int)std::ceil(end_y) && y < image_height; y++) {
             set_pixel(x, y, 0);
         }
     }
@@ -288,23 +258,20 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
     // 5. FreeType Text Rasterization
     if (ft_face_) {
         FT_Face face = (FT_Face)ft_face_;
-        int font_size = std::max(1, (params.height_txt - params.padd_txt_y) * res_fact);
+        int font_size = (int)std::round(params.text_size);
+        if (font_size < 6) font_size = 6;
         FT_Set_Pixel_Sizes(face, 0, font_size);
 
-        // Measure text advance & max height
+        // Measure text width
         int text_width = 0;
-        int max_glyph_height = 0;
         for (char c : params.input) {
             if (FT_Load_Char(face, c, FT_LOAD_RENDER) == 0) {
                 text_width += face->glyph->advance.x >> 6;
-                if ((int)face->glyph->bitmap.rows > max_glyph_height) {
-                    max_glyph_height = (int)face->glyph->bitmap.rows;
-                }
             }
         }
 
-        int center_pad = (image_width / 2) - (text_width / 2);
-        int pen_x = 0;
+        int pen_x = (image_width - text_width) / 2;
+        int baseline_y = (int)std::round(params.margin_y + params.bar_height + params.text_gap_y + (params.text_size * 0.82f));
 
         for (char c : params.input) {
             if (FT_Load_Char(face, c, FT_LOAD_RENDER) == 0) {
@@ -312,15 +279,17 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
                 int left = face->glyph->bitmap_left;
                 int top = face->glyph->bitmap_top;
 
-                for (int gy = 0; gy < (int)bmp->rows; gy++) {
-                    for (int gx = 0; gx < (int)bmp->width; gx++) {
-                        int final_x = pen_x + left + gx + center_pad;
-                        int final_y = (max_glyph_height - top + gy) + (params.height + params.padd_txt_y) * res_fact;
-
-                        uint8_t alpha = bmp->buffer[gy * bmp->pitch + gx];
-                        if (alpha > 0) {
-                            uint8_t gray_val = (uint8_t)std::abs((int)alpha - 255);
-                            set_pixel(final_x, final_y, gray_val);
+                for (int row = 0; row < (int)bmp->rows; row++) {
+                    for (int col = 0; col < (int)bmp->width; col++) {
+                        uint8_t alpha = bmp->buffer[row * bmp->pitch + col];
+                        if (alpha > 30) {
+                            int px = pen_x + left + col;
+                            int py = baseline_y - top + row;
+                            if (px >= 0 && px < image_width && py >= 0 && py < image_height) {
+                                uint8_t existing = result.grayscale[py * image_width + px];
+                                uint8_t blended = (uint8_t)(((255 - alpha) * existing) / 255);
+                                set_pixel(px, py, blended);
+                            }
                         }
                     }
                 }
@@ -334,7 +303,9 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
 }
 
 bool BarcodeEngine::save_png(const BarcodeImage& img, const std::string& filepath) {
-    if (!img.valid || img.grayscale.empty()) return false;
+    if (!img.valid || img.grayscale.empty() || img.width <= 0 || img.height <= 0) {
+        return false;
+    }
 
     libattopng_t* png = libattopng_new(img.width, img.height, PNG_GRAYSCALE);
     if (!png) return false;

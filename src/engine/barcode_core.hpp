@@ -7,15 +7,15 @@
 #include <cstdint>
 
 struct BarcodeParams {
-    std::string input = "A0101";
-    int height = 20;
-    int height_txt = 7;
-    int padd_x = 5;
-    int padd_y = 2;
-    int padd_txt_y = 2;
-    int res_fact = 8;
-    int comp_fact = 1;
-    float fractional_scale = 1.0f; // Subpixel fractional scaling (e.g. 0.25x to 3.00x)
+    std::string input = "A0100";
+
+    // Continuous Fractional Geometry (Floating Point)
+    float module_width = 6.0f;       // X-Dimension: Width of 1 narrow module in pixels (e.g. 1.0f to 16.0f)
+    float bar_height = 90.0f;        // Height of barcode bars in pixels
+    float text_size = 32.0f;         // Human readable text size in pixels
+    float quiet_zone_x = 10.0f;      // Quiet zone margins on left and right in modules (standard >= 10)
+    float margin_y = 8.0f;           // Top and bottom paper margins in pixels
+    float text_gap_y = 8.0f;         // Spacing between bars and text in pixels
 };
 
 struct BarcodeImage {
@@ -39,37 +39,30 @@ public:
     BarcodeEngine();
     ~BarcodeEngine();
 
-    // Initializes dictionaries and FreeType font.
-    // resource_dir can be specified; if empty, will search known candidate paths.
     bool init(const std::string& resource_dir = "");
 
     bool is_initialized() const { return initialized_; }
     const std::string& get_resource_dir() const { return resource_dir_; }
 
-    // Generates barcode image in memory (returns RGBA & Grayscale buffers)
+    // Generates barcode image in memory (RGBA & Grayscale buffers) with fractional precision
     BarcodeImage generate(const BarcodeParams& params);
 
     // Save generated image to PNG file
     bool save_png(const BarcodeImage& img, const std::string& filepath);
     bool save_png(const std::string& text, const BarcodeParams& params, const std::string& filepath);
 
-    // Validation helper: checks if string can be encoded with current Code128 dictionary
+    // Validation helper
     bool validate_text(const std::string& text, std::string& out_error) const;
 
 private:
     bool load_dictionaries();
     bool init_freetype();
-    void cleanup_freetype();
-    std::string find_file(const std::string& filename);
 
     std::unordered_map<char, Code128Entry> dict_char_;
     std::unordered_map<int, Code128Entry> dict_int_;
-
     std::string resource_dir_;
-    std::string font_path_;
     bool initialized_ = false;
 
-    // FreeType opaque handles
     void* ft_library_ = nullptr;
     void* ft_face_ = nullptr;
 };

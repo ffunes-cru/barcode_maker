@@ -62,26 +62,28 @@ static int run_cli(int argc, char* argv[]) {
                 array_len = std::atoi(optarg);
                 break;
             case 'H':
-                params.height = std::atoi(optarg);
+                params.bar_height = (float)std::atof(optarg);
                 break;
             case 'T':
-                params.height_txt = std::atoi(optarg);
+                params.text_size = (float)std::atof(optarg);
                 break;
             case 'X':
-                params.padd_x = std::atoi(optarg);
+                params.quiet_zone_x = (float)std::atof(optarg);
                 break;
             case 'Y':
-                params.padd_y = std::atoi(optarg);
+                params.margin_y = (float)std::atof(optarg);
                 break;
             case 'y':
-                params.padd_txt_y = std::atoi(optarg);
+                params.text_gap_y = (float)std::atof(optarg);
                 break;
             case 'R':
-                params.res_fact = std::atoi(optarg);
+                params.module_width = (float)std::atof(optarg);
                 break;
-            case 'C':
-                params.comp_fact = std::atoi(optarg);
+            case 'C': {
+                float comp = (float)std::atof(optarg);
+                if (comp > 0.01f) params.module_width /= comp;
                 break;
+            }
             case 'v':
                 std::cout << "Code128 Studio v" << CODE128_APP_VERSION << "\n";
                 return 0;
