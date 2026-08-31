@@ -29,7 +29,7 @@ App::App() {
     strip_settings_.preset = BrotherRollPreset::DK_22205_62mm;
     strip_settings_.roll_width_mm = 62.0f;
     strip_settings_.printable_width_mm = 58.0f;
-    strip_settings_.vertical_feed = true; // Downwards feed
+    strip_settings_.vertical_feed = true;
     strip_settings_.repeat_count = 12;
     strip_settings_.label_gap_mm = 4.0f;
     strip_settings_.show_cut_lines = true;
@@ -46,7 +46,7 @@ App::~App() = default;
 
 bool App::init(const std::string& resource_dir) {
     if (!engine_.init(resource_dir)) {
-        status_notification_ = "Aviso: Motor de exportacion inicializado con advertencias";
+        status_notification_ = "Aviso: Motor inicializado con advertencias";
         status_notification_timer_ = 4.0f;
     }
 
@@ -189,7 +189,7 @@ void App::export_batch() {
         }
     }
 
-    status_notification_ = "Lote completado: " + std::to_string(success_count) + " / " + std::to_string(total) + " exportados en " + output_dir_buf_;
+    status_notification_ = "Lote completado: " + std::to_string(success_count) + " / " + std::to_string(total) + " exportados";
     status_notification_timer_ = 5.0f;
 }
 
@@ -208,7 +208,7 @@ void App::apply_brother_preset() {
     strip_settings_.repeat_count = 12;
     strip_settings_.label_gap_mm = 4.0f;
     update_barcode_data();
-    status_notification_ = "Preset Brother QL-1110NWB aplicado (-H 13 -T 16 -R 8 -C 1 -X 5 -Y 1 -y 1)";
+    status_notification_ = "Preset Brother QL-1110NWB aplicado";
     status_notification_timer_ = 3.0f;
 }
 
@@ -234,27 +234,29 @@ void App::render_ui() {
     ImGui::Begin("Code128StudioMainWindow", nullptr, window_flags);
     ImGui::PopStyleVar(2);
 
-    // --- Top Action Header (Overflow Fixed) ---
+    // --- Top Action Header (Perfect Auto-Sizing & Alignment) ---
     ImGui::BeginGroup();
     {
         ImGui::TextColored(ImVec4(0.38f, 0.80f, 1.0f, 1.0f), "CODE 128 STUDIO");
         ImGui::SameLine();
         ImGui::TextDisabled("| Brother QL-1110NWB v%s", CODE128_APP_VERSION);
 
-        // Calculate right-aligned buttons to never overflow screen
-        float btn1_w = 125.0f;
-        float btn2_w = 135.0f;
-        float btn3_w = 145.0f;
-        float total_btns_w = btn1_w + btn2_w + btn3_w + ImGui::GetStyle().ItemSpacing.x * 2;
-        float window_w = ImGui::GetWindowWidth();
+        // Compute button widths accurately so text is never cut off
+        float pad_x = ImGui::GetStyle().FramePadding.x * 2.0f;
+        float b1_w = ImGui::CalcTextSize("[ Actualizaciones ]").x + pad_x + 8.0f;
+        float b2_w = ImGui::CalcTextSize("[ Preset Brother ]").x + pad_x + 8.0f;
+        float b3_w = ImGui::CalcTextSize("[ Imprimir Directo ]").x + pad_x + 8.0f;
+        float spacing = ImGui::GetStyle().ItemSpacing.x;
+        float total_w = b1_w + b2_w + b3_w + (spacing * 2.0f);
 
-        if (window_w > total_btns_w + 320.0f) {
-            ImGui::SameLine(window_w - total_btns_w - ImGui::GetStyle().WindowPadding.x - 10.0f);
+        float avail = ImGui::GetContentRegionAvail().x;
+        if (avail > total_w) {
+            ImGui::SameLine(ImGui::GetWindowWidth() - total_w - ImGui::GetStyle().WindowPadding.x - 4.0f);
         } else {
             ImGui::SameLine();
         }
 
-        if (ImGui::Button("[ Actualizaciones ]", ImVec2(btn1_w, 0))) {
+        if (ImGui::Button("[ Actualizaciones ]", ImVec2(b1_w, 0))) {
             show_update_dialog_ = true;
             is_checking_update_ = true;
             std::string err;
@@ -262,11 +264,11 @@ void App::render_ui() {
             is_checking_update_ = false;
         }
         ImGui::SameLine();
-        if (ImGui::Button("[ Preset Brother ]", ImVec2(btn2_w, 0))) {
+        if (ImGui::Button("[ Preset Brother ]", ImVec2(b2_w, 0))) {
             apply_brother_preset();
         }
         ImGui::SameLine();
-        if (ImGui::Button("[ Imprimir Directo ]", ImVec2(btn3_w, 0))) {
+        if (ImGui::Button("[ Imprimir Directo ]", ImVec2(b3_w, 0))) {
             show_print_dialog_ = true;
         }
     }
@@ -374,7 +376,7 @@ void App::render_left_panel() {
         }
 
         ImGui::Text("Margen X / Quiet Zone (-X):");
-        if (ImGui::SliderInt("##PaddX", &params_.padd_x, 0, 20, "%d px")) {
+        if (ImGui::SliderInt("##PaddX", &params_.padd_x, 0, 30, "%d px")) {
             update_barcode_data();
         }
         if (params_.padd_x < 5) {
@@ -382,12 +384,12 @@ void App::render_left_panel() {
         }
 
         ImGui::Text("Margen Y (-Y):");
-        if (ImGui::SliderInt("##PaddY", &params_.padd_y, 0, 10, "%d px")) {
+        if (ImGui::SliderInt("##PaddY", &params_.padd_y, 0, 15, "%d px")) {
             update_barcode_data();
         }
 
         ImGui::Text("Margen Texto Y (-y):");
-        if (ImGui::SliderInt("##PaddTxtY", &params_.padd_txt_y, 0, 10, "%d px")) {
+        if (ImGui::SliderInt("##PaddTxtY", &params_.padd_txt_y, 0, 15, "%d px")) {
             update_barcode_data();
         }
     }
@@ -486,19 +488,22 @@ void App::render_live_preview_tab() {
         return;
     }
 
-    // Professional Clean Metric Card
+    // Professional Clean Metric Card (cm and mm accurate)
     ImGui::BeginChild("MetricSummaryCard", ImVec2(0, 48), true);
     {
         float mm_w = (float)calculated_width_px_ / (300.0f / 25.4f);
         float mm_h = (float)calculated_height_px_ / (300.0f / 25.4f);
+        float cm_w = mm_w / 10.0f;
+        float cm_h = mm_h / 10.0f;
+
         ImGui::Columns(4, "metrics_col", false);
         ImGui::Text("Texto: %s", params_.input.c_str());
         ImGui::NextColumn();
         ImGui::Text("Pixeles: %d x %d px", calculated_width_px_, calculated_height_px_);
         ImGui::NextColumn();
-        ImGui::Text("Medida @300DPI: %.1f x %.1f mm", mm_w, mm_h);
+        ImGui::Text("Medida: %.1f x %.1f cm (%.1f mm)", cm_w, cm_h, mm_w);
         ImGui::NextColumn();
-        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Estado: Valido");
+        ImGui::Text("Quiet Zone: %d px (%d x %d)", params_.padd_x, params_.padd_x * params_.res_fact, params_.padd_y * params_.res_fact);
         ImGui::Columns(1);
     }
     ImGui::EndChild();
@@ -556,9 +561,9 @@ void App::render_live_preview_tab() {
         }
 
         // Additional stop bar
-        float stop_extra_x0 = bar_start_x + (float)code_len * module_w;
-        float stop_extra_x1 = stop_extra_x0 + module_w * 2.0f;
-        draw_list->AddRectFilled(ImVec2(stop_extra_x0, bar_y0), ImVec2(stop_extra_x1, bar_y1), IM_COL32(0, 0, 0, 255));
+        float stop_x0 = bar_start_x + (float)code_len * module_w;
+        float stop_x1 = stop_x0 + module_w * 2.0f;
+        draw_list->AddRectFilled(ImVec2(stop_x0, bar_y0), ImVec2(stop_x1, bar_y1), IM_COL32(0, 0, 0, 255));
 
         // High-Quality Crisp Text Rendering
         ImFont* text_font = font_barcode_ ? font_barcode_ : ImGui::GetFont();
@@ -602,23 +607,45 @@ void App::render_strip_preview_tab() {
     float lead_px = strip_settings_.leading_margin_mm * dots_per_mm;
     float trail_px = strip_settings_.trailing_margin_mm * dots_per_mm;
 
+    // Dimensions based on rotation:
+    // If rotate_90 is true: label width on tape is single_h, label height along roll is single_w!
+    float label_on_tape_w = strip_settings_.rotate_90 ? single_h : single_w;
+    float label_on_tape_h = strip_settings_.rotate_90 ? single_w : single_h;
+
     float tape_width_px = tape_w_mm * dots_per_mm;
-    float total_strip_h = lead_px + (single_h + gap_px) * labels_to_render.size() - gap_px + trail_px;
+    float total_strip_h = lead_px + (label_on_tape_h + gap_px) * labels_to_render.size() - gap_px + trail_px;
     float total_strip_mm = total_strip_h / dots_per_mm;
+    float total_strip_cm = total_strip_mm / 10.0f;
+    float tape_w_cm = tape_w_mm / 10.0f;
+
+    // Check if barcode exceeds tape width
+    bool barcode_exceeds_tape = (label_on_tape_w > tape_width_px);
+    float barcode_mm_w = label_on_tape_w / dots_per_mm;
 
     ImGui::BeginChild("StripMetricCard", ImVec2(0, 48), true);
     {
         ImGui::Columns(4, "strip_metrics_col", false);
-        ImGui::Text("Ancho Rollo: %.1f mm", tape_w_mm);
+        ImGui::Text("Ancho Rollo: %.1f cm (%.1f mm)", tape_w_cm, tape_w_mm);
         ImGui::NextColumn();
-        ImGui::Text("Largo Tira: %.1f mm (%.1f in)", total_strip_mm, total_strip_mm / 25.4f);
+        ImGui::Text("Largo Tira: %.1f cm (%.1f in)", total_strip_cm, total_strip_mm / 25.4f);
         ImGui::NextColumn();
         ImGui::Text("Etiquetas: %zu", labels_to_render.size());
         ImGui::NextColumn();
-        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Brother QL-1110NWB");
+        if (barcode_exceeds_tape) {
+            ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "[!] Excede Ancho Rollo");
+        } else {
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Margen OK (%.1f mm)", (tape_w_mm - barcode_mm_w) * 0.5f);
+        }
         ImGui::Columns(1);
     }
     ImGui::EndChild();
+
+    if (barcode_exceeds_tape) {
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f),
+            "[!] Aviso: El codigo mide %.1f mm y excede el rollo de %.1f mm. Activa 'Rotar 90 deg' o usa el rollo de 103.6 mm.",
+            barcode_mm_w, tape_w_mm);
+    }
 
     ImGui::Spacing();
 
@@ -636,7 +663,7 @@ void App::render_strip_preview_tab() {
 
     ImGui::Spacing();
 
-    // --- GPU Vertical Tape Roll Canvas (No Unwanted Top Lines) ---
+    // --- GPU Vertical Tape Roll Canvas (Supports 90° Rotation & Proper Margins) ---
     ImVec2 avail = ImGui::GetContentRegionAvail();
     ImGui::BeginChild("GPUVerticalStripCanvas", ImVec2(avail.x, avail.y - 10), true, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     {
@@ -651,53 +678,89 @@ void App::render_strip_preview_tab() {
         ImVec2 tape_min = ImVec2(canvas_pos.x + offset_x, canvas_pos.y + 20.0f);
         ImVec2 tape_max = ImVec2(tape_min.x + tape_render_w, tape_min.y + tape_render_h);
 
-        // 1. Draw Continuous Paper Roll
+        // 1. Draw Continuous Paper Roll (Paper White)
         draw_list->AddRectFilled(tape_min, tape_max, IM_COL32(252, 252, 252, 255), 3.0f);
         draw_list->AddRect(tape_min, tape_max, IM_COL32(110, 110, 110, 255), 3.0f, 0, 1.0f);
 
-        // 2. Render labels vertically stacked downwards
+        // 2. Draw Printable Margins guideline (subtle dashed line)
+        float margin_side_px = ((tape_w_mm - print_w_mm) * 0.5f) * dots_per_mm * scale;
+        if (margin_side_px > 1.0f) {
+            draw_list->AddLine(ImVec2(tape_min.x + margin_side_px, tape_min.y),
+                               ImVec2(tape_min.x + margin_side_px, tape_max.y), IM_COL32(200, 200, 200, 150), 1.0f);
+            draw_list->AddLine(ImVec2(tape_max.x - margin_side_px, tape_min.y),
+                               ImVec2(tape_max.x - margin_side_px, tape_max.y), IM_COL32(200, 200, 200, 150), 1.0f);
+        }
+
+        // 3. Render labels vertically stacked downwards
         int comp_fact = params_.comp_fact <= 0 ? 1 : params_.comp_fact;
         int res_fact = params_.res_fact <= 0 ? 1 : params_.res_fact;
         int code_res_fac = (int)std::floor((double)res_fact / comp_fact);
         if (code_res_fac < 1) code_res_fac = 1;
 
         float cur_y = tape_min.y + lead_px * scale;
-        float label_x0 = tape_min.x + ((tape_render_w - single_w * scale) * 0.5f);
-
         ImFont* text_font = font_barcode_ ? font_barcode_ : ImGui::GetFont();
         float target_font_size = (float)std::max(10, (params_.height_txt - params_.padd_txt_y) * res_fact) * scale;
+        int code_len = (int)current_encoded_bits_.length();
+        float module_w = (float)code_res_fac * scale;
 
         for (size_t l = 0; l < labels_to_render.size(); l++) {
             float label_y0 = cur_y;
-            float label_y1 = label_y0 + single_h * scale;
+            float label_y1 = label_y0 + label_on_tape_h * scale;
 
-            // Draw bars
-            float bar_start_x = label_x0 + (float)(params_.padd_x * code_res_fac) * scale;
-            float bar_y0 = label_y0 + (float)(params_.padd_y * res_fact) * scale;
-            float bar_y1 = label_y0 + (float)(params_.height * res_fact) * scale;
-            float module_w = (float)code_res_fac * scale;
+            if (!strip_settings_.rotate_90) {
+                // --- Normal Horizontal Barcode (Centered Horizontally) ---
+                float label_x0 = tape_min.x + ((tape_render_w - single_w * scale) * 0.5f);
+                float bar_start_x = label_x0 + (float)(params_.padd_x * code_res_fac) * scale;
+                float bar_y0 = label_y0 + (float)(params_.padd_y * res_fact) * scale;
+                float bar_y1 = label_y0 + (float)(params_.height * res_fact) * scale;
 
-            int code_len = (int)current_encoded_bits_.length();
-            for (int i = 0; i < code_len; i++) {
-                if (current_encoded_bits_[i] == '1') {
-                    float bx0 = bar_start_x + (float)i * module_w;
-                    float bx1 = bx0 + module_w;
-                    draw_list->AddRectFilled(ImVec2(bx0, bar_y0), ImVec2(bx1, bar_y1), IM_COL32(0, 0, 0, 255));
+                for (int i = 0; i < code_len; i++) {
+                    if (current_encoded_bits_[i] == '1') {
+                        float bx0 = bar_start_x + (float)i * module_w;
+                        float bx1 = bx0 + module_w;
+                        draw_list->AddRectFilled(ImVec2(bx0, bar_y0), ImVec2(bx1, bar_y1), IM_COL32(0, 0, 0, 255));
+                    }
                 }
+
+                // Stop bar
+                float stop_x0 = bar_start_x + (float)code_len * module_w;
+                float stop_x1 = stop_x0 + module_w * 2.0f;
+                draw_list->AddRectFilled(ImVec2(stop_x0, bar_y0), ImVec2(stop_x1, bar_y1), IM_COL32(0, 0, 0, 255));
+
+                // Crisp Text
+                ImVec2 text_size = text_font->CalcTextSizeA(target_font_size, FLT_MAX, 0.0f, labels_to_render[l].c_str());
+                float text_x = label_x0 + (single_w * scale - text_size.x) * 0.5f;
+                float text_y = label_y0 + (float)(params_.height + params_.padd_txt_y) * res_fact * scale;
+
+                draw_list->AddText(text_font, target_font_size, ImVec2(text_x, text_y),
+                                   IM_COL32(0, 0, 0, 255), labels_to_render[l].c_str());
+            } else {
+                // --- Rotated 90° Barcode (Runs Along the Tape) ---
+                float label_x0 = tape_min.x + ((tape_render_w - single_h * scale) * 0.5f);
+                float bar_start_y = label_y0 + (float)(params_.padd_x * code_res_fac) * scale;
+                float bar_x0 = label_x0 + (float)(params_.padd_y * res_fact) * scale;
+                float bar_x1 = label_x0 + (float)(params_.height * res_fact) * scale;
+
+                for (int i = 0; i < code_len; i++) {
+                    if (current_encoded_bits_[i] == '1') {
+                        float by0 = bar_start_y + (float)i * module_w;
+                        float by1 = by0 + module_w;
+                        draw_list->AddRectFilled(ImVec2(bar_x0, by0), ImVec2(bar_x1, by1), IM_COL32(0, 0, 0, 255));
+                    }
+                }
+
+                // Stop bar
+                float stop_y0 = bar_start_y + (float)code_len * module_w;
+                float stop_y1 = stop_y0 + module_w * 2.0f;
+                draw_list->AddRectFilled(ImVec2(bar_x0, stop_y0), ImVec2(bar_x1, stop_y1), IM_COL32(0, 0, 0, 255));
+
+                // Text drawn alongside rotated barcode
+                float text_x = label_x0 + (float)(params_.height + params_.padd_txt_y) * res_fact * scale;
+                float text_y = label_y0 + (label_on_tape_h * scale * 0.35f);
+
+                draw_list->AddText(text_font, target_font_size, ImVec2(text_x, text_y),
+                                   IM_COL32(0, 0, 0, 255), labels_to_render[l].c_str());
             }
-
-            // Stop bar
-            float stop_x0 = bar_start_x + (float)code_len * module_w;
-            float stop_x1 = stop_x0 + module_w * 2.0f;
-            draw_list->AddRectFilled(ImVec2(stop_x0, bar_y0), ImVec2(stop_x1, bar_y1), IM_COL32(0, 0, 0, 255));
-
-            // Crisp Text Rendering
-            ImVec2 text_size = text_font->CalcTextSizeA(target_font_size, FLT_MAX, 0.0f, labels_to_render[l].c_str());
-            float text_x = label_x0 + (single_w * scale - text_size.x) * 0.5f;
-            float text_y = label_y0 + (float)(params_.height + params_.padd_txt_y) * res_fact * scale;
-
-            draw_list->AddText(text_font, target_font_size, ImVec2(text_x, text_y),
-                               IM_COL32(0, 0, 0, 255), labels_to_render[l].c_str());
 
             // Horizontal cut guideline between labels
             if (strip_settings_.show_cut_lines && l < labels_to_render.size() - 1) {
@@ -708,7 +771,7 @@ void App::render_strip_preview_tab() {
                 }
             }
 
-            cur_y += (single_h + gap_px) * scale;
+            cur_y += (label_on_tape_h + gap_px) * scale;
         }
 
         ImGui::Dummy(ImVec2(tape_render_w + offset_x * 2, tape_render_h + 40.0f));
@@ -730,17 +793,19 @@ void App::render_batch_table_tab() {
     std::string filter(search_filter_buf_);
     ImGui::Spacing();
 
+    int total_items = (batch_array_len_limit_ > 0) ? std::min((int)batch_items_.size(), batch_array_len_limit_)
+                                                   : (int)batch_items_.size();
+
     static ImGuiTableFlags table_flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders |
                                          ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable;
 
-    if (ImGui::BeginTable("BatchItemsTable", 4, table_flags, ImVec2(0, ImGui::GetContentRegionAvail().y - 10))) {
-        ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed, 45.0f);
+    if (ImGui::BeginTable("BatchItemsTable", 3, table_flags, ImVec2(0, ImGui::GetContentRegionAvail().y - 10))) {
+        ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed, 50.0f);
         ImGui::TableSetupColumn("Codigo", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("Estado", ImGuiTableColumnFlags_WidthFixed, 80.0f);
-        ImGui::TableSetupColumn("Accion", ImGuiTableColumnFlags_WidthFixed, 90.0f);
+        ImGui::TableSetupColumn("Accion", ImGuiTableColumnFlags_WidthFixed, 100.0f);
         ImGui::TableHeadersRow();
 
-        for (int i = 0; i < (int)batch_items_.size(); i++) {
+        for (int i = 0; i < total_items; i++) {
             if (!filter.empty() && batch_items_[i].find(filter) == std::string::npos) {
                 continue;
             }
@@ -759,9 +824,6 @@ void App::render_batch_table_tab() {
                 target_tab_index_ = 0;
                 request_tab_switch_ = true;
             }
-
-            ImGui::TableNextColumn();
-            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Valido");
 
             ImGui::TableNextColumn();
             std::string btn_id = "Ver##" + std::to_string(i);
