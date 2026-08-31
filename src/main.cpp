@@ -4,6 +4,7 @@
 #include <cstring>
 #include <getopt.h>
 #include <cstdlib>
+#include <vector>
 
 #include <GLFW/glfw3.h>
 
@@ -174,7 +175,7 @@ static int run_gui(int argc, char* argv[]) {
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
     glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
 
-    GLFWwindow* window = glfwCreateWindow(1280, 800, "Code128 Studio", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(1360, 840, "Code128 Studio - Windows 11 Fluent Suite", nullptr, nullptr);
     if (!window) {
         std::cerr << "Failed to create GLFW window\n";
         glfwTerminate();
@@ -189,21 +190,58 @@ static int run_gui(int argc, char* argv[]) {
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-    // Classic Retro Dark Dear ImGui Theme
-    Win11Theme::ApplyFluentDarkTheme();
+    // Apply Balanced Windows 11 Fluent Theme
+    Win11Theme::ApplyBalancedFluentTheme();
 
-    // Standard Dear ImGui default font
-    io.Fonts->AddFontDefault();
-
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init(glsl_version);
-
+    // High Quality Crisp TTF/OTF Font Loading
     std::string exe_dir = "";
     if (argc > 0 && argv[0]) {
         exe_dir = fs::path(argv[0]).parent_path().string();
     }
 
+    std::vector<std::string> search_paths = {
+        "font.otf",
+        "font.ttf",
+        exe_dir + "/font.otf",
+        exe_dir + "/../font.otf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "C:\\Windows\\Fonts\\segoeui.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf"
+    };
+
+    std::string loaded_font_path = "";
+    for (const auto& p : search_paths) {
+        if (!p.empty() && fs::exists(p)) {
+            loaded_font_path = p;
+            break;
+        }
+    }
+
+    ImFontConfig font_cfg;
+    font_cfg.OversampleH = 3;
+    font_cfg.OversampleV = 2;
+    font_cfg.PixelSnapH = true;
+
+    ImFont* font_ui = nullptr;
+    ImFont* font_barcode = nullptr;
+
+    if (!loaded_font_path.empty()) {
+        font_ui = io.Fonts->AddFontFromFileTTF(loaded_font_path.c_str(), 16.0f, &font_cfg);
+        font_barcode = io.Fonts->AddFontFromFileTTF(loaded_font_path.c_str(), 42.0f, &font_cfg);
+    }
+
+    if (!font_ui) {
+        font_ui = io.Fonts->AddFontDefault();
+        font_barcode = font_ui;
+    }
+
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init(glsl_version);
+
     App app;
+    app.set_fonts(font_ui, font_barcode);
     app.init(exe_dir);
 
     while (!glfwWindowShouldClose(window)) {
@@ -219,7 +257,7 @@ static int run_gui(int argc, char* argv[]) {
         int display_w, display_h;
         glfwGetFramebufferSize(window, &display_w, &display_h);
         glViewport(0, 0, display_w, display_h);
-        glClearColor(0.125f, 0.125f, 0.125f, 1.0f);
+        glClearColor(0.12f, 0.12f, 0.12f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
@@ -237,7 +275,6 @@ static int run_gui(int argc, char* argv[]) {
 
 // --- Main Unified Entrypoint ---
 int main(int argc, char* argv[]) {
-    // If command-line flags (like -s, -c, -h, -v) are passed, run in CLI mode
     if (argc > 1) {
         if (std::strcmp(argv[1], "--gui") == 0 || std::strcmp(argv[1], "-g") == 0) {
             return run_gui(argc, argv);
@@ -245,6 +282,5 @@ int main(int argc, char* argv[]) {
         return run_cli(argc, argv);
     }
 
-    // Default without arguments: Launch GUI!
     return run_gui(argc, argv);
 }

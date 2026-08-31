@@ -8,12 +8,18 @@
 #include "../updater/updater.hpp"
 #include "strip_preview.hpp"
 
+struct ImFont;
+
 class App {
 public:
     App();
     ~App();
 
     bool init(const std::string& resource_dir = "");
+    void set_fonts(ImFont* ui_font, ImFont* barcode_font) {
+        font_ui_ = ui_font;
+        font_barcode_ = barcode_font;
+    }
     void render_ui();
 
 private:
@@ -34,6 +40,10 @@ private:
 
     BarcodeEngine engine_;
     PrintManager print_manager_;
+
+    // Fonts
+    ImFont* font_ui_ = nullptr;
+    ImFont* font_barcode_ = nullptr;
 
     // Barcode & Strip configuration
     BarcodeParams params_;
@@ -62,7 +72,7 @@ private:
 
     // Pan & Zoom controls for GPU preview
     float preview_zoom_ = 1.0f;
-    float strip_zoom_ = 1.0f;
+    float strip_zoom_ = 0.6f;
 
     // Status banner
     std::string status_notification_;

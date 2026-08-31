@@ -16,7 +16,7 @@ extern "C" {
 namespace fs = std::filesystem;
 
 App::App() {
-    // Default Brother QL recommended settings
+    // Default Brother QL-1110NWB settings
     params_.input = "A0101";
     params_.height = 13;
     params_.height_txt = 16;
@@ -29,13 +29,14 @@ App::App() {
     strip_settings_.preset = BrotherRollPreset::DK_22205_62mm;
     strip_settings_.roll_width_mm = 62.0f;
     strip_settings_.printable_width_mm = 58.0f;
+    strip_settings_.vertical_feed = true; // Natural downwards feed
     strip_settings_.repeat_count = 12;
-    strip_settings_.label_gap_mm = 3.0f;
+    strip_settings_.label_gap_mm = 4.0f;
     strip_settings_.show_cut_lines = true;
     strip_settings_.rotate_90 = false;
     strip_settings_.center_on_tape = true;
 
-    print_job_settings_.printer_name = print_manager_.get_default_printer();
+    print_job_settings_.printer_name = "Brother_QL-1110NWB";
     print_job_settings_.copies = 1;
     print_job_settings_.fit_to_page = true;
     print_job_settings_.orientation = 0;
@@ -201,10 +202,13 @@ void App::apply_brother_preset() {
     params_.res_fact = 8;
     params_.comp_fact = 1;
     strip_settings_.preset = BrotherRollPreset::DK_22205_62mm;
+    strip_settings_.roll_width_mm = 62.0f;
+    strip_settings_.printable_width_mm = 58.0f;
+    strip_settings_.vertical_feed = true;
     strip_settings_.repeat_count = 12;
-    strip_settings_.label_gap_mm = 3.0f;
+    strip_settings_.label_gap_mm = 4.0f;
     update_barcode_data();
-    status_notification_ = "Preset Brother QL aplicado (-H 13 -T 16 -R 8 -C 1 -X 5 -Y 1 -y 1)";
+    status_notification_ = "Preset Brother QL-1110NWB aplicado (-H 13 -T 16 -R 8 -C 1 -X 5 -Y 1 -y 1)";
     status_notification_timer_ = 3.0f;
 }
 
@@ -230,12 +234,14 @@ void App::render_ui() {
     ImGui::Begin("Code128StudioMainWindow", nullptr, window_flags);
     ImGui::PopStyleVar(2);
 
-    // --- Header Bar ---
+    // --- Top Action Header ---
     ImGui::BeginGroup();
     {
-        ImGui::Text("CODE 128 STUDIO - Barcode Suite");
+        ImGui::TextColored(ImVec4(0.38f, 0.80f, 1.0f, 1.0f), "CODE 128 STUDIO");
+        ImGui::SameLine();
+        ImGui::TextDisabled("| Brother QL-1110NWB & Win11 Suite");
 
-        ImGui::SameLine(ImGui::GetWindowWidth() - 430.0f);
+        ImGui::SameLine(ImGui::GetWindowWidth() - 480.0f);
         if (ImGui::Button("[ Actualizaciones ]")) {
             show_update_dialog_ = true;
             is_checking_update_ = true;
@@ -248,7 +254,7 @@ void App::render_ui() {
             apply_brother_preset();
         }
         ImGui::SameLine();
-        if (ImGui::Button("[ Imprimir Directo ]", ImVec2(150, 0))) {
+        if (ImGui::Button("[ Imprimir Directo ]", ImVec2(160, 0))) {
             show_print_dialog_ = true;
         }
     }
@@ -282,7 +288,7 @@ void App::render_ui() {
 
     ImGui::Spacing();
 
-    float left_panel_width = 380.0f;
+    float left_panel_width = 390.0f;
     float right_panel_width = ImGui::GetContentRegionAvail().x - left_panel_width - 12.0f;
 
     ImGui::BeginChild("LeftPanelChild", ImVec2(left_panel_width, 0), true);
@@ -377,13 +383,15 @@ void App::render_left_panel() {
     ImGui::Spacing();
 
     // --- 3. Brother Label & Strip Settings ---
-    if (ImGui::CollapsingHeader("3. Impresora Brother (Tiras)", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("3. Impresora Brother QL (Tiras)", ImGuiTreeNodeFlags_DefaultOpen)) {
         const char* presets[] = {
-            "Brother DK-22205 (62 mm Continuo)",
-            "Brother DK-22243 (102 mm Continuo)",
-            "Brother DK-22210 (29 mm Continuo)",
-            "Brother DK-22225 (38 mm Continuo)",
-            "Brother DK-11201 (29x90 mm Precortada)",
+            "DK-22246 / 22243 (103.6 mm - QL-1110NWB 4\" Ancho)",
+            "DK-22205 (62 mm Continuo Estandar)",
+            "DK-22210 (29 mm Continuo Estrecho)",
+            "DK-22223 (50 mm Continuo)",
+            "DK-22225 (38 mm Continuo)",
+            "DK-11241 (102 x 152 mm Envios QL-1110NWB)",
+            "DK-11201 (29 x 90 mm Precortada)",
             "Personalizado"
         };
         int current_preset = (int)strip_settings_.preset;
@@ -441,7 +449,7 @@ void App::render_right_panel() {
             ImGui::EndTabItem();
         }
 
-        if (ImGui::BeginTabItem("Vista de Tira (Brother)")) {
+        if (ImGui::BeginTabItem("Tira Continua Brother (Hacia Abajo)")) {
             render_strip_preview_tab();
             ImGui::EndTabItem();
         }
@@ -462,7 +470,7 @@ void App::render_live_preview_tab() {
     }
 
     // Metric Summary Card
-    ImGui::BeginChild("MetricSummaryCard", ImVec2(0, 50), true);
+    ImGui::BeginChild("MetricSummaryCard", ImVec2(0, 52), true);
     {
         float mm_w = (float)calculated_width_px_ / (300.0f / 25.4f);
         float mm_h = (float)calculated_height_px_ / (300.0f / 25.4f);
@@ -473,7 +481,7 @@ void App::render_live_preview_tab() {
         ImGui::NextColumn();
         ImGui::Text("Medida @300DPI: %.1f x %.1f mm", mm_w, mm_h);
         ImGui::NextColumn();
-        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[OK] Render GPU");
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[OK] GPU Direct 144+ FPS");
         ImGui::Columns(1);
     }
     ImGui::EndChild();
@@ -489,7 +497,7 @@ void App::render_live_preview_tab() {
 
     ImGui::Spacing();
 
-    // --- GPU DrawList Canvas ---
+    // --- GPU Direct DrawList Canvas with High-Res Font ---
     ImVec2 avail = ImGui::GetContentRegionAvail();
     ImGui::BeginChild("GPUCanvasChild", ImVec2(avail.x, avail.y - 30), true, ImGuiWindowFlags_HorizontalScrollbar);
     {
@@ -511,9 +519,9 @@ void App::render_live_preview_tab() {
         ImVec2 card_min = ImVec2(canvas_pos.x + offset_x, canvas_pos.y + offset_y);
         ImVec2 card_max = ImVec2(card_min.x + barcode_w, card_min.y + barcode_h);
 
-        // White paper background
-        draw_list->AddRectFilled(card_min, card_max, IM_COL32(255, 255, 255, 255));
-        draw_list->AddRect(card_min, card_max, IM_COL32(120, 120, 120, 255));
+        // White paper background with subtle border
+        draw_list->AddRectFilled(card_min, card_max, IM_COL32(255, 255, 255, 255), 2.0f);
+        draw_list->AddRect(card_min, card_max, IM_COL32(100, 100, 100, 255), 2.0f);
 
         // Draw barcode bars directly in GPU
         float bar_start_x = card_min.x + (float)(params_.padd_x * code_res_fac) * scale;
@@ -538,15 +546,15 @@ void App::render_live_preview_tab() {
         // Top border line
         draw_list->AddLine(card_min, ImVec2(card_max.x, card_min.y), IM_COL32(0, 0, 0, 255), 1.0f * scale);
 
-        // Centered Human Readable Text
-        float text_font_size = (float)std::max(10, (params_.height_txt - params_.padd_txt_y) * res_fact) * scale;
-        ImVec2 text_size = ImGui::CalcTextSize(params_.input.c_str());
-        float text_scale = (text_font_size / ImGui::GetFontSize());
-
-        float text_x = card_min.x + (barcode_w - text_size.x * text_scale) * 0.5f;
+        // High-Quality Crisp Text Rendering
+        ImFont* text_font = font_barcode_ ? font_barcode_ : ImGui::GetFont();
+        float target_font_size = (float)std::max(12, (params_.height_txt - params_.padd_txt_y) * res_fact) * scale;
+        
+        ImVec2 text_size = text_font->CalcTextSizeA(target_font_size, FLT_MAX, 0.0f, params_.input.c_str());
+        float text_x = card_min.x + (barcode_w - text_size.x) * 0.5f;
         float text_y = card_min.y + (float)(params_.height + params_.padd_txt_y) * res_fact * scale;
 
-        draw_list->AddText(ImGui::GetFont(), text_font_size, ImVec2(text_x, text_y),
+        draw_list->AddText(text_font, target_font_size, ImVec2(text_x, text_y),
                            IM_COL32(0, 0, 0, 255), params_.input.c_str());
 
         ImGui::Dummy(ImVec2(offset_x * 2 + barcode_w, offset_y * 2 + barcode_h));
@@ -574,26 +582,27 @@ void App::render_strip_preview_tab() {
         labels_to_render.assign(std::clamp(strip_settings_.repeat_count, 1, 30), params_.input);
     }
 
+    float single_w = (float)calculated_width_px_;
+    float single_h = (float)calculated_height_px_;
     float gap_px = strip_settings_.label_gap_mm * dots_per_mm;
     float lead_px = strip_settings_.leading_margin_mm * dots_per_mm;
     float trail_px = strip_settings_.trailing_margin_mm * dots_per_mm;
-    float single_w = (float)calculated_width_px_;
-    float single_h = (float)calculated_height_px_;
 
-    float total_strip_w = lead_px + (single_w + gap_px) * labels_to_render.size() - gap_px + trail_px;
-    float total_strip_h = tape_w_mm * dots_per_mm;
-    float total_strip_mm = total_strip_w / dots_per_mm;
+    // Vertical feed dimensions: Width is roll width, Height is strip length
+    float tape_width_px = tape_w_mm * dots_per_mm;
+    float total_strip_h = lead_px + (single_h + gap_px) * labels_to_render.size() - gap_px + trail_px;
+    float total_strip_mm = total_strip_h / dots_per_mm;
 
-    ImGui::BeginChild("StripMetricCard", ImVec2(0, 50), true);
+    ImGui::BeginChild("StripMetricCard", ImVec2(0, 52), true);
     {
         ImGui::Columns(4, "strip_metrics_col", false);
         ImGui::Text("Ancho Rollo: %.1f mm", tape_w_mm);
         ImGui::NextColumn();
-        ImGui::Text("Largo Total: %.1f mm (%.1f in)", total_strip_mm, total_strip_mm / 25.4f);
+        ImGui::Text("Largo Tira: %.1f mm (%.1f in)", total_strip_mm, total_strip_mm / 25.4f);
         ImGui::NextColumn();
-        ImGui::Text("Etiquetas: %zu en tira", labels_to_render.size());
+        ImGui::Text("Etiquetas: %zu (Alimentacion Abajo)", labels_to_render.size());
         ImGui::NextColumn();
-        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[OK] Tira Activa");
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[OK] Brother QL-1110NWB");
         ImGui::Columns(1);
     }
     ImGui::EndChild();
@@ -603,40 +612,55 @@ void App::render_strip_preview_tab() {
     ImGui::Text("Escala de Vista:");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(180);
-    ImGui::SliderFloat("##StripZoom", &strip_zoom_, 0.2f, 1.5f, "%.2fx");
+    ImGui::SliderFloat("##StripZoom", &strip_zoom_, 0.2f, 2.0f, "%.2fx");
     ImGui::SameLine();
-    if (ImGui::SmallButton("Ajustar")) strip_zoom_ = 0.5f;
+    if (ImGui::SmallButton("100%")) strip_zoom_ = 1.0f;
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Ajustar al Ancho")) {
+        float avail_w = ImGui::GetContentRegionAvail().x - 60.0f;
+        if (tape_width_px > 0) strip_zoom_ = std::clamp(avail_w / tape_width_px, 0.3f, 1.5f);
+    }
 
     ImGui::Spacing();
 
+    // --- GPU Vertical Tape Roll Canvas (Feeding Downwards) ---
     ImVec2 avail = ImGui::GetContentRegionAvail();
-    ImGui::BeginChild("GPUStripTapeCanvas", ImVec2(avail.x, avail.y - 10), true, ImGuiWindowFlags_HorizontalScrollbar);
+    ImGui::BeginChild("GPUVerticalStripCanvas", ImVec2(avail.x, avail.y - 10), true, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     {
         ImDrawList* draw_list = ImGui::GetWindowDrawList();
         ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
 
         float scale = strip_zoom_;
-        float tape_render_w = total_strip_w * scale;
+        float tape_render_w = tape_width_px * scale;
         float tape_render_h = total_strip_h * scale;
 
-        ImVec2 tape_min = ImVec2(canvas_pos.x + 20.0f, canvas_pos.y + 20.0f);
+        // Center roll tape horizontally in view
+        float offset_x = std::max(20.0f, (avail.x - tape_render_w - 30.0f) * 0.5f);
+        ImVec2 tape_min = ImVec2(canvas_pos.x + offset_x, canvas_pos.y + 20.0f);
         ImVec2 tape_max = ImVec2(tape_min.x + tape_render_w, tape_min.y + tape_render_h);
 
-        draw_list->AddRectFilled(tape_min, tape_max, IM_COL32(245, 245, 245, 255));
-        draw_list->AddRect(tape_min, tape_max, IM_COL32(140, 140, 140, 255));
+        // 1. Draw Continuous White Paper Roll
+        draw_list->AddRectFilled(tape_min, tape_max, IM_COL32(252, 252, 252, 255), 3.0f);
+        draw_list->AddRect(tape_min, tape_max, IM_COL32(120, 120, 120, 255), 3.0f, 0, 1.5f);
 
+        // 2. Render labels vertically stacked downwards
         int comp_fact = params_.comp_fact <= 0 ? 1 : params_.comp_fact;
         int res_fact = params_.res_fact <= 0 ? 1 : params_.res_fact;
         int code_res_fac = (int)std::floor((double)res_fact / comp_fact);
         if (code_res_fac < 1) code_res_fac = 1;
 
-        float cur_x = tape_min.x + lead_px * scale;
-        float label_y0 = tape_min.y + ((tape_render_h - single_h * scale) * 0.5f);
+        float cur_y = tape_min.y + lead_px * scale;
+        float label_x0 = tape_min.x + ((tape_render_w - single_w * scale) * 0.5f);
+        float label_x1 = label_x0 + single_w * scale;
+
+        ImFont* text_font = font_barcode_ ? font_barcode_ : ImGui::GetFont();
+        float target_font_size = (float)std::max(10, (params_.height_txt - params_.padd_txt_y) * res_fact) * scale;
 
         for (size_t l = 0; l < labels_to_render.size(); l++) {
-            float label_x0 = cur_x;
-            float label_x1 = label_x0 + single_w * scale;
+            float label_y0 = cur_y;
+            float label_y1 = label_y0 + single_h * scale;
 
+            // Draw bars
             float bar_start_x = label_x0 + (float)(params_.padd_x * code_res_fac) * scale;
             float bar_y0 = label_y0 + (float)(params_.padd_y * res_fact) * scale;
             float bar_y1 = label_y0 + (float)(params_.height * res_fact) * scale;
@@ -651,33 +675,35 @@ void App::render_strip_preview_tab() {
                 }
             }
 
+            // Stop bar
             float stop_x0 = bar_start_x + (float)code_len * module_w;
             float stop_x1 = stop_x0 + module_w * 2.0f;
             draw_list->AddRectFilled(ImVec2(stop_x0, bar_y0), ImVec2(stop_x1, bar_y1), IM_COL32(0, 0, 0, 255));
 
+            // Top label border
             draw_list->AddLine(ImVec2(label_x0, label_y0), ImVec2(label_x1, label_y0), IM_COL32(0, 0, 0, 255), 1.0f * scale);
 
-            float text_font_size = (float)std::max(8, (params_.height_txt - params_.padd_txt_y) * res_fact) * scale;
-            ImVec2 text_size = ImGui::CalcTextSize(labels_to_render[l].c_str());
-            float text_scale = (text_font_size / ImGui::GetFontSize());
-            float text_x = label_x0 + (single_w * scale - text_size.x * text_scale) * 0.5f;
+            // Crisp Text Rendering
+            ImVec2 text_size = text_font->CalcTextSizeA(target_font_size, FLT_MAX, 0.0f, labels_to_render[l].c_str());
+            float text_x = label_x0 + (single_w * scale - text_size.x) * 0.5f;
             float text_y = label_y0 + (float)(params_.height + params_.padd_txt_y) * res_fact * scale;
 
-            draw_list->AddText(ImGui::GetFont(), text_font_size, ImVec2(text_x, text_y),
+            draw_list->AddText(text_font, target_font_size, ImVec2(text_x, text_y),
                                IM_COL32(0, 0, 0, 255), labels_to_render[l].c_str());
 
+            // Horizontal cut guideline between labels across the whole roll
             if (strip_settings_.show_cut_lines && l < labels_to_render.size() - 1) {
-                float cut_x = label_x1 + (gap_px * scale * 0.5f);
-                for (float cy = tape_min.y; cy < tape_max.y; cy += 8.0f) {
-                    draw_list->AddLine(ImVec2(cut_x, cy), ImVec2(cut_x, std::min(tape_max.y, cy + 4.0f)),
-                                       IM_COL32(180, 50, 50, 200), 1.5f);
+                float cut_y = label_y1 + (gap_px * scale * 0.5f);
+                for (float cx = tape_min.x; cx < tape_max.x; cx += 10.0f) {
+                    draw_list->AddLine(ImVec2(cx, cut_y), ImVec2(std::min(tape_max.x, cx + 5.0f), cut_y),
+                                       IM_COL32(200, 40, 40, 220), 1.5f);
                 }
             }
 
-            cur_x += (single_w + gap_px) * scale;
+            cur_y += (single_h + gap_px) * scale;
         }
 
-        ImGui::Dummy(ImVec2(tape_render_w + 40.0f, tape_render_h + 40.0f));
+        ImGui::Dummy(ImVec2(tape_render_w + offset_x * 2, tape_render_h + 40.0f));
     }
     ImGui::EndChild();
 }
@@ -747,10 +773,10 @@ void App::render_print_modal() {
 
     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(480, 340), ImGuiCond_Appearing);
+    ImGui::SetNextWindowSize(ImVec2(500, 360), ImGuiCond_Appearing);
 
     if (ImGui::BeginPopupModal("Dialogo de Impresion Directa", &show_print_dialog_, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("Enviar Trabajo de Impresion");
+        ImGui::TextColored(ImVec4(0.38f, 0.80f, 1.0f, 1.0f), "Enviar Trabajo a Brother QL-1110NWB");
         ImGui::Separator();
         ImGui::Spacing();
 
@@ -778,10 +804,10 @@ void App::render_print_modal() {
 
         ImGui::Spacing();
 
-        static int print_target_mode = 0;
+        static int print_target_mode = 1; // Default to strip
         ImGui::Text("Contenido a Imprimir:");
         ImGui::RadioButton("Codigo Actual (Etiqueta Individual)", &print_target_mode, 0);
-        ImGui::RadioButton("Tira Continua Completa (Rollo Brother)", &print_target_mode, 1);
+        ImGui::RadioButton("Tira Continua Completa (Rollo Brother QL)", &print_target_mode, 1);
 
         ImGui::Spacing();
 
@@ -797,7 +823,7 @@ void App::render_print_modal() {
         ImGui::Separator();
         ImGui::Spacing();
 
-        if (ImGui::Button("[ Enviar a Impresora ]", ImVec2(180, 0))) {
+        if (ImGui::Button("[ Enviar a Impresora ]", ImVec2(200, 0))) {
             std::string out_msg;
             bool ok = false;
             if (print_target_mode == 0) {

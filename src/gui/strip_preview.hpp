@@ -6,11 +6,13 @@
 #include "../engine/barcode_core.hpp"
 
 enum class BrotherRollPreset {
-    DK_22205_62mm,  // 62mm continuous tape (printable ~58mm / ~685 px @ 300 DPI)
-    DK_22243_102mm, // 102mm continuous tape (printable ~98mm / ~1157 px @ 300 DPI)
-    DK_22210_29mm,  // 29mm continuous tape (printable ~26mm / ~307 px @ 300 DPI)
-    DK_22225_38mm,  // 38mm continuous tape (printable ~34mm / ~401 px @ 300 DPI)
-    DK_11201_29x90, // 29x90mm die-cut label
+    DK_22246_103mm, // Brother QL-1110NWB 4-inch Wide Tape (103.6mm / Printable ~99mm)
+    DK_22205_62mm,  // Standard QL Continuous Tape (62mm / Printable ~58mm)
+    DK_22210_29mm,  // Narrow QL Continuous Tape (29mm / Printable ~26mm)
+    DK_22223_50mm,  // Medium Continuous Tape (50mm / Printable ~46mm)
+    DK_22225_38mm,  // Medium-Narrow Continuous Tape (38mm / Printable ~34mm)
+    DK_11241_102x152, // Large Shipping Die-Cut Label for QL-1110NWB (102x152mm)
+    DK_11201_29x90,   // Standard Die-Cut Label (29x90mm)
     CustomRoll      // Custom mm width
 };
 
@@ -20,14 +22,15 @@ struct StripSettings {
     float printable_width_mm = 58.0f;
     int dpi = 300;
 
-    int repeat_count = 12;            // Number of copies when in single-barcode mode
-    bool use_batch_list = false;       // If true, build strip from batch file items instead of repeating single
-    float label_gap_mm = 3.0f;         // Spacing between labels
-    float leading_margin_mm = 5.0f;    // Tape lead margin
-    float trailing_margin_mm = 5.0f;   // Tape tail margin
-    bool show_cut_lines = true;        // Draw dashed or solid cut guidelines
-    bool rotate_90 = false;            // 90 deg rotation (horizontal vs vertical on tape)
-    bool center_on_tape = true;        // Center barcode vertically on tape width
+    bool vertical_feed = true;         // True: Strip feeds downwards (natural Brother roll feed)
+    int repeat_count = 12;             // Number of copies
+    bool use_batch_list = false;       // Use batch file items
+    float label_gap_mm = 4.0f;         // Spacing between labels
+    float leading_margin_mm = 4.0f;    // Lead margin
+    float trailing_margin_mm = 4.0f;   // Tail margin
+    bool show_cut_lines = true;        // Draw cut guidelines
+    bool rotate_90 = false;            // Rotate individual barcode 90 deg
+    bool center_on_tape = true;        // Center barcode horizontally on tape
 };
 
 struct StripImage {
@@ -48,7 +51,7 @@ public:
 
     static void GetPresetDimensions(BrotherRollPreset preset, float& out_tape_w, float& out_print_w, std::string& out_name);
 
-    // Generates the continuous strip image buffer
+    // Generates composite continuous strip bitmap (vertical downwards feed)
     static StripImage GenerateStrip(
         BarcodeEngine& engine,
         const BarcodeParams& base_params,
