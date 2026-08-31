@@ -174,7 +174,7 @@ static int run_gui(int argc, char* argv[]) {
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
     glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
 
-    GLFWwindow* window = glfwCreateWindow(1360, 840, "Code128 Studio - Windows 11 Fluent Suite", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(1280, 800, "Code128 Studio", nullptr, nullptr);
     if (!window) {
         std::cerr << "Failed to create GLFW window\n";
         glfwTerminate();
@@ -189,26 +189,11 @@ static int run_gui(int argc, char* argv[]) {
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
+    // Classic Retro Dark Dear ImGui Theme
     Win11Theme::ApplyFluentDarkTheme();
 
-    // Fonts
-    std::vector<std::string> font_candidates = {
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        "C:\\Windows\\Fonts\\segoeui.ttf",
-        "C:\\Windows\\Fonts\\arial.ttf",
-        "font.otf"
-    };
-    bool font_loaded = false;
-    for (const auto& path : font_candidates) {
-        if (fs::exists(path)) {
-            io.Fonts->AddFontFromFileTTF(path.c_str(), 16.0f);
-            font_loaded = true;
-            break;
-        }
-    }
-    if (!font_loaded) io.Fonts->AddFontDefault();
+    // Standard Dear ImGui default font
+    io.Fonts->AddFontDefault();
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);

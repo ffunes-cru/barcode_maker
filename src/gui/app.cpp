@@ -45,7 +45,7 @@ App::~App() = default;
 
 bool App::init(const std::string& resource_dir) {
     if (!engine_.init(resource_dir)) {
-        status_notification_ = "Aviso: Motor de exportación inicializado con advertencias";
+        status_notification_ = "Aviso: Motor de exportacion inicializado con advertencias";
         status_notification_timer_ = 4.0f;
     }
 
@@ -68,7 +68,6 @@ void App::update_barcode_data() {
         return;
     }
 
-    // Generate code in memory
     BarcodeImage img = engine_.generate(params_);
     if (img.valid) {
         is_code_valid_ = true;
@@ -111,7 +110,7 @@ void App::load_batch_file(const std::string& filepath) {
     if (!batch_items_.empty()) {
         selected_batch_index_ = 0;
         strncpy(batch_file_path_, filepath.c_str(), sizeof(batch_file_path_) - 1);
-        status_notification_ = "Cargados " + std::to_string(batch_items_.size()) + " códigos desde " + filepath;
+        status_notification_ = "Cargados " + std::to_string(batch_items_.size()) + " codigos desde " + filepath;
         status_notification_timer_ = 4.0f;
         if (input_mode_ == InputMode::BatchFile) {
             params_.input = batch_items_[0];
@@ -165,7 +164,7 @@ void App::export_strip_png() {
         }
         libattopng_save(png, out.string().c_str());
         libattopng_destroy(png);
-        status_notification_ = "Tira exportada con éxito: " + out.string();
+        status_notification_ = "Tira exportada con exito: " + out.string();
         status_notification_timer_ = 4.0f;
     }
 }
@@ -210,7 +209,6 @@ void App::apply_brother_preset() {
 }
 
 void App::render_ui() {
-    // Notification timer countdown
     if (status_notification_timer_ > 0.0f) {
         status_notification_timer_ -= ImGui::GetIO().DeltaTime;
         if (status_notification_timer_ <= 0.0f) {
@@ -228,20 +226,17 @@ void App::render_ui() {
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 12.0f));
 
     ImGui::Begin("Code128StudioMainWindow", nullptr, window_flags);
-    ImGui::PopStyleVar(3);
+    ImGui::PopStyleVar(2);
 
     // --- Header Bar ---
     ImGui::BeginGroup();
     {
-        ImGui::TextColored(ImVec4(0.38f, 0.80f, 1.0f, 1.0f), "CODE 128 STUDIO");
-        ImGui::SameLine();
-        ImGui::TextDisabled("| Windows 11 Fluent Barcode Suite (GPU Accelerated)");
+        ImGui::Text("CODE 128 STUDIO - Barcode Suite");
 
-        ImGui::SameLine(ImGui::GetWindowWidth() - 480.0f);
-        if (ImGui::Button("🔄 Actualizaciones")) {
+        ImGui::SameLine(ImGui::GetWindowWidth() - 430.0f);
+        if (ImGui::Button("[ Actualizaciones ]")) {
             show_update_dialog_ = true;
             is_checking_update_ = true;
             std::string err;
@@ -249,11 +244,11 @@ void App::render_ui() {
             is_checking_update_ = false;
         }
         ImGui::SameLine();
-        if (ImGui::Button("Preset Brother QL")) {
+        if (ImGui::Button("[ Preset Brother QL ]")) {
             apply_brother_preset();
         }
         ImGui::SameLine();
-        if (ImGui::Button("🖨️ Imprimir Directo", ImVec2(140, 0))) {
+        if (ImGui::Button("[ Imprimir Directo ]", ImVec2(150, 0))) {
             show_print_dialog_ = true;
         }
     }
@@ -265,13 +260,13 @@ void App::render_ui() {
     // Mode Selector
     ImGui::Text("Modo de Entrada:");
     ImGui::SameLine();
-    if (ImGui::RadioButton("Manual Directo", input_mode_ == InputMode::Manual)) {
+    if (ImGui::RadioButton("Manual", input_mode_ == InputMode::Manual)) {
         input_mode_ = InputMode::Manual;
         params_.input = manual_input_buf_;
         update_barcode_data();
     }
     ImGui::SameLine();
-    if (ImGui::RadioButton("Lote por Archivo (.txt)", input_mode_ == InputMode::BatchFile)) {
+    if (ImGui::RadioButton("Archivo de Lote (.txt)", input_mode_ == InputMode::BatchFile)) {
         input_mode_ = InputMode::BatchFile;
         if (!batch_items_.empty()) {
             params_.input = batch_items_[selected_batch_index_];
@@ -282,11 +277,7 @@ void App::render_ui() {
 
     if (!status_notification_.empty()) {
         ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.40f, 0.70f, 0.35f));
-        ImGui::BeginChild("NotificationBanner", ImVec2(0, 32), true);
-        ImGui::Text("ℹ️  %s", status_notification_.c_str());
-        ImGui::EndChild();
-        ImGui::PopStyleColor();
+        ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "[INFO] %s", status_notification_.c_str());
     }
 
     ImGui::Spacing();
@@ -326,10 +317,10 @@ void App::render_left_panel() {
                 load_batch_file(batch_file_path_);
             }
             ImGui::SameLine();
-            ImGui::TextDisabled("(%zu códigos)", batch_items_.size());
+            ImGui::Text("(%zu codigos)", batch_items_.size());
 
             if (!batch_items_.empty()) {
-                ImGui::Text("Límite de elementos (-A):");
+                ImGui::Text("Limite de elementos (-A):");
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(100);
                 if (ImGui::InputInt("##LimitA", &batch_array_len_limit_)) {
@@ -342,14 +333,14 @@ void App::render_left_panel() {
     ImGui::Spacing();
 
     // --- 2. Barcode CLI Parameters ---
-    if (ImGui::CollapsingHeader("2. Parámetros del Código (CLI)", ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::Text("Factor Resolución (-R):");
+    if (ImGui::CollapsingHeader("2. Parametros CLI", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::Text("Factor Resolucion (-R):");
         if (ImGui::SliderInt("##ResFact", &params_.res_fact, 1, 16, "%dx")) {
             if (params_.comp_fact > params_.res_fact) params_.comp_fact = params_.res_fact;
             update_barcode_data();
         }
 
-        ImGui::Text("Factor Compresión (-C):");
+        ImGui::Text("Factor Compresion (-C):");
         if (ImGui::SliderInt("##CompFact", &params_.comp_fact, 1, params_.res_fact, "%dx")) {
             update_barcode_data();
         }
@@ -369,7 +360,7 @@ void App::render_left_panel() {
             update_barcode_data();
         }
         if (params_.padd_x < 5) {
-            ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f), "⚠️ Quiet zone baja (< 5): riesgo de no lectura");
+            ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f), "[!] Quiet zone baja (< 5): riesgo de no lectura");
         }
 
         ImGui::Text("Margen Y (-Y):");
@@ -386,7 +377,7 @@ void App::render_left_panel() {
     ImGui::Spacing();
 
     // --- 3. Brother Label & Strip Settings ---
-    if (ImGui::CollapsingHeader("3. Impresora Brother / Tiras", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("3. Impresora Brother (Tiras)", ImGuiTreeNodeFlags_DefaultOpen)) {
         const char* presets[] = {
             "Brother DK-22205 (62 mm Continuo)",
             "Brother DK-22243 (102 mm Continuo)",
@@ -417,26 +408,26 @@ void App::render_left_panel() {
 
         ImGui::Checkbox("Mostrar marcas de corte", &strip_settings_.show_cut_lines);
         ImGui::SameLine();
-        ImGui::Checkbox("Rotar 90°", &strip_settings_.rotate_90);
+        ImGui::Checkbox("Rotar 90 deg", &strip_settings_.rotate_90);
     }
 
     ImGui::Spacing();
 
     // --- 4. Export Options ---
-    if (ImGui::CollapsingHeader("4. Exportación & Salida", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("4. Exportacion y Salida", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::Text("Carpeta de salida (-o):");
         ImGui::InputText("##OutputDir", output_dir_buf_, sizeof(output_dir_buf_));
 
-        if (ImGui::Button("💾 Guardar PNG Individual", ImVec2(-1, 0))) {
+        if (ImGui::Button("[ Guardar PNG Individual ]", ImVec2(-1, 0))) {
             export_current_png();
         }
 
-        if (ImGui::Button("🎞️ Exportar Tira Completa PNG", ImVec2(-1, 0))) {
+        if (ImGui::Button("[ Exportar Tira Completa PNG ]", ImVec2(-1, 0))) {
             export_strip_png();
         }
 
         if (input_mode_ == InputMode::BatchFile && !batch_items_.empty()) {
-            if (ImGui::Button("📦 Exportar Lote Completo PNGs", ImVec2(-1, 0))) {
+            if (ImGui::Button("[ Exportar Lote Completo PNGs ]", ImVec2(-1, 0))) {
                 export_batch();
             }
         }
@@ -445,17 +436,17 @@ void App::render_left_panel() {
 
 void App::render_right_panel() {
     if (ImGui::BeginTabBar("MainRightTabBar", ImGuiTabBarFlags_None)) {
-        if (ImGui::BeginTabItem("⚡ Previsualización en Caliente (GPU)")) {
+        if (ImGui::BeginTabItem("Previsualizacion en Vivo")) {
             render_live_preview_tab();
             ImGui::EndTabItem();
         }
 
-        if (ImGui::BeginTabItem("🏷️ Vista de Tira / Impresora Brother")) {
+        if (ImGui::BeginTabItem("Vista de Tira (Brother)")) {
             render_strip_preview_tab();
             ImGui::EndTabItem();
         }
 
-        if (input_mode_ == InputMode::BatchFile && ImGui::BeginTabItem("📋 Lista de Lote")) {
+        if (input_mode_ == InputMode::BatchFile && ImGui::BeginTabItem("Lista de Lote")) {
             render_batch_table_tab();
             ImGui::EndTabItem();
         }
@@ -466,32 +457,29 @@ void App::render_right_panel() {
 
 void App::render_live_preview_tab() {
     if (!is_code_valid_) {
-        ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "❌ Error: %s", code_error_msg_.c_str());
+        ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "[ERROR] %s", code_error_msg_.c_str());
         return;
     }
 
     // Metric Summary Card
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.18f, 0.18f, 0.18f, 1.0f));
-    ImGui::BeginChild("MetricSummaryCard", ImVec2(0, 56), true);
+    ImGui::BeginChild("MetricSummaryCard", ImVec2(0, 50), true);
     {
         float mm_w = (float)calculated_width_px_ / (300.0f / 25.4f);
         float mm_h = (float)calculated_height_px_ / (300.0f / 25.4f);
         ImGui::Columns(4, "metrics_col", false);
         ImGui::Text("Texto: %s", params_.input.c_str());
         ImGui::NextColumn();
-        ImGui::Text("Píxeles: %d x %d px", calculated_width_px_, calculated_height_px_);
+        ImGui::Text("Pixeles: %d x %d px", calculated_width_px_, calculated_height_px_);
         ImGui::NextColumn();
         ImGui::Text("Medida @300DPI: %.1f x %.1f mm", mm_w, mm_h);
         ImGui::NextColumn();
-        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "● GPU Instantáneo (60+ FPS)");
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[OK] Render GPU");
         ImGui::Columns(1);
     }
     ImGui::EndChild();
-    ImGui::PopStyleColor();
 
     ImGui::Spacing();
 
-    // Zoom slider
     ImGui::Text("Zoom:");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(180);
@@ -501,7 +489,7 @@ void App::render_live_preview_tab() {
 
     ImGui::Spacing();
 
-    // --- 100% GPU Immediate DrawList Canvas ---
+    // --- GPU DrawList Canvas ---
     ImVec2 avail = ImGui::GetContentRegionAvail();
     ImGui::BeginChild("GPUCanvasChild", ImVec2(avail.x, avail.y - 30), true, ImGuiWindowFlags_HorizontalScrollbar);
     {
@@ -517,18 +505,17 @@ void App::render_live_preview_tab() {
         float barcode_w = (float)calculated_width_px_ * scale;
         float barcode_h = (float)calculated_height_px_ * scale;
 
-        // Center inside canvas
         float offset_x = std::max(20.0f, (avail.x - barcode_w) * 0.5f);
         float offset_y = std::max(20.0f, (avail.y - barcode_h - 40.0f) * 0.5f);
 
         ImVec2 card_min = ImVec2(canvas_pos.x + offset_x, canvas_pos.y + offset_y);
         ImVec2 card_max = ImVec2(card_min.x + barcode_w, card_min.y + barcode_h);
 
-        // 1. Draw pure white paper background
-        draw_list->AddRectFilled(card_min, card_max, IM_COL32(255, 255, 255, 255), 4.0f);
-        draw_list->AddRect(card_min, card_max, IM_COL32(180, 180, 180, 255), 4.0f, 0, 1.0f);
+        // White paper background
+        draw_list->AddRectFilled(card_min, card_max, IM_COL32(255, 255, 255, 255));
+        draw_list->AddRect(card_min, card_max, IM_COL32(120, 120, 120, 255));
 
-        // 2. Draw black barcode bars directly in GPU vertex buffer
+        // Draw barcode bars directly in GPU
         float bar_start_x = card_min.x + (float)(params_.padd_x * code_res_fac) * scale;
         float bar_y0 = card_min.y + (float)(params_.padd_y * res_fact) * scale;
         float bar_y1 = card_min.y + (float)(params_.height * res_fact) * scale;
@@ -551,7 +538,7 @@ void App::render_live_preview_tab() {
         // Top border line
         draw_list->AddLine(card_min, ImVec2(card_max.x, card_min.y), IM_COL32(0, 0, 0, 255), 1.0f * scale);
 
-        // 3. Draw Human Readable Text Centered
+        // Centered Human Readable Text
         float text_font_size = (float)std::max(10, (params_.height_txt - params_.padd_txt_y) * res_fact) * scale;
         ImVec2 text_size = ImGui::CalcTextSize(params_.input.c_str());
         float text_scale = (text_font_size / ImGui::GetFontSize());
@@ -562,12 +549,11 @@ void App::render_live_preview_tab() {
         draw_list->AddText(ImGui::GetFont(), text_font_size, ImVec2(text_x, text_y),
                            IM_COL32(0, 0, 0, 255), params_.input.c_str());
 
-        // Dummy item to allocate scrollable area
         ImGui::Dummy(ImVec2(offset_x * 2 + barcode_w, offset_y * 2 + barcode_h));
     }
     ImGui::EndChild();
 
-    ImGui::TextDisabled("Patrón binario: %s", current_encoded_bits_.c_str());
+    ImGui::Text("Patron binario: %s", current_encoded_bits_.c_str());
 }
 
 void App::render_strip_preview_tab() {
@@ -598,26 +584,22 @@ void App::render_strip_preview_tab() {
     float total_strip_h = tape_w_mm * dots_per_mm;
     float total_strip_mm = total_strip_w / dots_per_mm;
 
-    // Strip Metrics Card
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.18f, 0.18f, 0.18f, 1.0f));
-    ImGui::BeginChild("StripMetricCard", ImVec2(0, 56), true);
+    ImGui::BeginChild("StripMetricCard", ImVec2(0, 50), true);
     {
         ImGui::Columns(4, "strip_metrics_col", false);
         ImGui::Text("Ancho Rollo: %.1f mm", tape_w_mm);
         ImGui::NextColumn();
-        ImGui::Text("Largo Total: %.1f mm (%.1f\")", total_strip_mm, total_strip_mm / 25.4f);
+        ImGui::Text("Largo Total: %.1f mm (%.1f in)", total_strip_mm, total_strip_mm / 25.4f);
         ImGui::NextColumn();
         ImGui::Text("Etiquetas: %zu en tira", labels_to_render.size());
         ImGui::NextColumn();
-        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "● Render GPU Tira Activo");
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[OK] Tira Activa");
         ImGui::Columns(1);
     }
     ImGui::EndChild();
-    ImGui::PopStyleColor();
 
     ImGui::Spacing();
 
-    // Zoom slider
     ImGui::Text("Escala de Vista:");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(180);
@@ -627,7 +609,6 @@ void App::render_strip_preview_tab() {
 
     ImGui::Spacing();
 
-    // --- GPU Continuous Tape Render ---
     ImVec2 avail = ImGui::GetContentRegionAvail();
     ImGui::BeginChild("GPUStripTapeCanvas", ImVec2(avail.x, avail.y - 10), true, ImGuiWindowFlags_HorizontalScrollbar);
     {
@@ -641,11 +622,9 @@ void App::render_strip_preview_tab() {
         ImVec2 tape_min = ImVec2(canvas_pos.x + 20.0f, canvas_pos.y + 20.0f);
         ImVec2 tape_max = ImVec2(tape_min.x + tape_render_w, tape_min.y + tape_render_h);
 
-        // 1. Draw continuous paper tape roll
-        draw_list->AddRectFilled(tape_min, tape_max, IM_COL32(250, 250, 250, 255), 2.0f);
-        draw_list->AddRect(tape_min, tape_max, IM_COL32(160, 160, 160, 255), 2.0f, 0, 1.0f);
+        draw_list->AddRectFilled(tape_min, tape_max, IM_COL32(245, 245, 245, 255));
+        draw_list->AddRect(tape_min, tape_max, IM_COL32(140, 140, 140, 255));
 
-        // 2. Draw each label along the tape
         int comp_fact = params_.comp_fact <= 0 ? 1 : params_.comp_fact;
         int res_fact = params_.res_fact <= 0 ? 1 : params_.res_fact;
         int code_res_fac = (int)std::floor((double)res_fact / comp_fact);
@@ -658,7 +637,6 @@ void App::render_strip_preview_tab() {
             float label_x0 = cur_x;
             float label_x1 = label_x0 + single_w * scale;
 
-            // Draw bars
             float bar_start_x = label_x0 + (float)(params_.padd_x * code_res_fac) * scale;
             float bar_y0 = label_y0 + (float)(params_.padd_y * res_fact) * scale;
             float bar_y1 = label_y0 + (float)(params_.height * res_fact) * scale;
@@ -673,15 +651,12 @@ void App::render_strip_preview_tab() {
                 }
             }
 
-            // Stop bar
             float stop_x0 = bar_start_x + (float)code_len * module_w;
             float stop_x1 = stop_x0 + module_w * 2.0f;
             draw_list->AddRectFilled(ImVec2(stop_x0, bar_y0), ImVec2(stop_x1, bar_y1), IM_COL32(0, 0, 0, 255));
 
-            // Top border
             draw_list->AddLine(ImVec2(label_x0, label_y0), ImVec2(label_x1, label_y0), IM_COL32(0, 0, 0, 255), 1.0f * scale);
 
-            // Human readable text
             float text_font_size = (float)std::max(8, (params_.height_txt - params_.padd_txt_y) * res_fact) * scale;
             ImVec2 text_size = ImGui::CalcTextSize(labels_to_render[l].c_str());
             float text_scale = (text_font_size / ImGui::GetFontSize());
@@ -691,7 +666,6 @@ void App::render_strip_preview_tab() {
             draw_list->AddText(ImGui::GetFont(), text_font_size, ImVec2(text_x, text_y),
                                IM_COL32(0, 0, 0, 255), labels_to_render[l].c_str());
 
-            // Cut guideline
             if (strip_settings_.show_cut_lines && l < labels_to_render.size() - 1) {
                 float cut_x = label_x1 + (gap_px * scale * 0.5f);
                 for (float cy = tape_min.y; cy < tape_max.y; cy += 8.0f) {
@@ -710,17 +684,16 @@ void App::render_strip_preview_tab() {
 
 void App::render_batch_table_tab() {
     if (batch_items_.empty()) {
-        ImGui::TextDisabled("No hay archivo de lote cargado.");
+        ImGui::Text("No hay archivo de lote cargado.");
         return;
     }
 
-    ImGui::Text("Filtrar códigos:");
+    ImGui::Text("Filtrar codigos:");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(250);
     ImGui::InputText("##SearchFilter", search_filter_buf_, sizeof(search_filter_buf_));
 
     std::string filter(search_filter_buf_);
-
     ImGui::Spacing();
 
     static ImGuiTableFlags table_flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders |
@@ -728,9 +701,9 @@ void App::render_batch_table_tab() {
 
     if (ImGui::BeginTable("BatchItemsTable", 4, table_flags, ImVec2(0, ImGui::GetContentRegionAvail().y - 10))) {
         ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed, 45.0f);
-        ImGui::TableSetupColumn("Código", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Codigo", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("Estado", ImGuiTableColumnFlags_WidthFixed, 80.0f);
-        ImGui::TableSetupColumn("Acción", ImGuiTableColumnFlags_WidthFixed, 90.0f);
+        ImGui::TableSetupColumn("Accion", ImGuiTableColumnFlags_WidthFixed, 90.0f);
         ImGui::TableHeadersRow();
 
         for (int i = 0; i < (int)batch_items_.size(); i++) {
@@ -752,7 +725,7 @@ void App::render_batch_table_tab() {
             }
 
             ImGui::TableNextColumn();
-            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Válido");
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Valido");
 
             ImGui::TableNextColumn();
             std::string btn_id = "Ver##" + std::to_string(i);
@@ -770,14 +743,14 @@ void App::render_batch_table_tab() {
 void App::render_print_modal() {
     if (!show_print_dialog_) return;
 
-    ImGui::OpenPopup("Diálogo de Impresión Directa");
+    ImGui::OpenPopup("Dialogo de Impresion Directa");
 
     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(480, 360), ImGuiCond_Appearing);
+    ImGui::SetNextWindowSize(ImVec2(480, 340), ImGuiCond_Appearing);
 
-    if (ImGui::BeginPopupModal("Diálogo de Impresión Directa", &show_print_dialog_, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::TextColored(ImVec4(0.38f, 0.80f, 1.0f, 1.0f), "🖨️ Enviar Trabajo de Impresión");
+    if (ImGui::BeginPopupModal("Dialogo de Impresion Directa", &show_print_dialog_, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Enviar Trabajo de Impresion");
         ImGui::Separator();
         ImGui::Spacing();
 
@@ -807,7 +780,7 @@ void App::render_print_modal() {
 
         static int print_target_mode = 0;
         ImGui::Text("Contenido a Imprimir:");
-        ImGui::RadioButton("Código Actual (Etiqueta Individual)", &print_target_mode, 0);
+        ImGui::RadioButton("Codigo Actual (Etiqueta Individual)", &print_target_mode, 0);
         ImGui::RadioButton("Tira Continua Completa (Rollo Brother)", &print_target_mode, 1);
 
         ImGui::Spacing();
@@ -818,13 +791,13 @@ void App::render_print_modal() {
         ImGui::InputInt("##PrintCopies", &print_job_settings_.copies);
         if (print_job_settings_.copies < 1) print_job_settings_.copies = 1;
 
-        ImGui::Checkbox("Ajustar a la página (fit-to-page)", &print_job_settings_.fit_to_page);
+        ImGui::Checkbox("Ajustar a la pagina (fit-to-page)", &print_job_settings_.fit_to_page);
 
         ImGui::Spacing();
         ImGui::Separator();
         ImGui::Spacing();
 
-        if (ImGui::Button("🚀 Imprimir Ahora", ImVec2(150, 0))) {
+        if (ImGui::Button("[ Enviar a Impresora ]", ImVec2(180, 0))) {
             std::string out_msg;
             bool ok = false;
             if (print_target_mode == 0) {
@@ -863,27 +836,27 @@ void App::render_print_modal() {
 void App::render_update_modal() {
     if (!show_update_dialog_) return;
 
-    ImGui::OpenPopup("Actualización de Code128 Studio");
+    ImGui::OpenPopup("Actualizacion de Code128 Studio");
 
     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(460, 260), ImGuiCond_Appearing);
+    ImGui::SetNextWindowSize(ImVec2(460, 240), ImGuiCond_Appearing);
 
-    if (ImGui::BeginPopupModal("Actualización de Code128 Studio", &show_update_dialog_, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::TextColored(ImVec4(0.38f, 0.80f, 1.0f, 1.0f), "🔄 Actualizador Automático (Hot Update)");
+    if (ImGui::BeginPopupModal("Actualizacion de Code128 Studio", &show_update_dialog_, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Actualizador Automatico");
         ImGui::Separator();
         ImGui::Spacing();
 
-        ImGui::Text("Versión actual instalada: v%s", CODE128_APP_VERSION);
+        ImGui::Text("Version instalada: v%s", CODE128_APP_VERSION);
 
         if (is_checking_update_) {
             ImGui::Text("Conectando con GitHub Releases...");
         } else if (update_info_.update_available) {
-            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "¡Nueva versión disponible: %s!", update_info_.latest_version.c_str());
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Nueva version disponible: %s", update_info_.latest_version.c_str());
             ImGui::Spacing();
 
             if (!is_performing_update_) {
-                if (ImGui::Button("⚡ Actualizar Ahora (Hot Update)", ImVec2(220, 0))) {
+                if (ImGui::Button("[ Iniciar Actualizacion ]", ImVec2(200, 0))) {
                     is_performing_update_ = true;
                     std::string err;
                     bool ok = AppUpdater::PerformHotUpdate(update_info_, [this](float p, const std::string& msg) {
@@ -892,7 +865,7 @@ void App::render_update_modal() {
                     }, err);
 
                     if (ok) {
-                        status_notification_ = "¡Actualización instalada con éxito!";
+                        status_notification_ = "Actualizacion instalada con exito";
                         status_notification_timer_ = 5.0f;
                         show_update_dialog_ = false;
                         ImGui::CloseCurrentPopup();
@@ -906,7 +879,7 @@ void App::render_update_modal() {
                 ImGui::Text("%s", update_status_text_.c_str());
             }
         } else {
-            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "✅ Ya tienes la última versión instalada.");
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[OK] Ultima version instalada.");
         }
 
         ImGui::Spacing();
