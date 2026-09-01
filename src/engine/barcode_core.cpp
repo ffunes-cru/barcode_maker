@@ -157,6 +157,34 @@ bool BarcodeEngine::validate_text(const std::string& text, std::string& out_erro
     return true;
 }
 
+std::string BarcodeEngine::encode_to_bits(const std::string& text) const {
+    if (text.empty() || dict_char_.empty()) return "";
+    if (dict_char_.find('#') == dict_char_.end() || dict_char_.find('$') == dict_char_.end()) return "";
+
+    const auto& start_entry = dict_char_.at('#');
+    const auto& stop_entry = dict_char_.at('$');
+
+    std::string code = start_entry.pattern;
+    int check_sum = start_entry.value;
+
+    int idx = 1;
+    for (char c : text) {
+        char lookup = (c == ' ') ? 'b' : c;
+        if (dict_char_.find(lookup) == dict_char_.end()) return "";
+        const auto& entry = dict_char_.at(lookup);
+        check_sum += entry.value * idx;
+        code += entry.pattern;
+        idx++;
+    }
+
+    int check_val = check_sum % 103;
+    if (dict_int_.find(check_val) == dict_int_.end()) return "";
+
+    code += dict_int_.at(check_val).pattern;
+    code += stop_entry.pattern;
+    return code;
+}
+
 BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
     BarcodeImage result;
     result.valid = false;

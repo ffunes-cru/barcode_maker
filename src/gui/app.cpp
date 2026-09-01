@@ -571,6 +571,12 @@ void App::render_live_preview_tab() {
         float stop_x1 = stop_x0 + (2.0f * mod_w);
         draw_list->AddRectFilled(ImVec2(stop_x0, bar_y0), ImVec2(stop_x1, bar_y1), IM_COL32(0, 0, 0, 255));
 
+        // Subtle Quiet zone indicators (left and right)
+        draw_list->AddRectFilled(ImVec2(card_min.x, bar_y0), ImVec2(bar_start_x, bar_y1),
+                                 IM_COL32(180, 220, 255, 45));
+        draw_list->AddRectFilled(ImVec2(stop_x1, bar_y0), ImVec2(card_max.x, bar_y1),
+                                 IM_COL32(180, 220, 255, 45));
+
         // High-Quality Crisp Text Rendering
         ImFont* text_font = font_barcode_ ? font_barcode_ : ImGui::GetFont();
         float target_font_size = params_.text_size * scale;
@@ -624,20 +630,24 @@ void App::render_strip_preview_tab() {
 
     bool barcode_exceeds_tape = (label_on_tape_w > tape_width_px);
     float barcode_mm_w = label_on_tape_w / dots_per_mm;
+    float qz_mm = (params_.quiet_zone_x * params_.module_width) / dots_per_mm;
+    float tape_margin_mm = std::max(0.0f, (tape_w_mm - barcode_mm_w) * 0.5f);
+    float total_free_mm = tape_margin_mm + qz_mm;
 
-    ImGui::BeginChild("StripMetricCard", ImVec2(0, 48), true);
+    ImGui::BeginChild("StripMetricCard", ImVec2(0, 52), true);
     {
         ImGui::Columns(4, "strip_metrics_col", false);
         ImGui::Text("Ancho Rollo: %.1f cm (%.1f mm)", tape_w_cm, tape_w_mm);
         ImGui::NextColumn();
         ImGui::Text("Largo Tira: %.1f cm (%.1f in)", total_strip_cm, total_strip_mm / 25.4f);
         ImGui::NextColumn();
-        ImGui::Text("Etiquetas: %zu", labels_to_render.size());
+        ImGui::Text("Etiquetas: %zu en tira", labels_to_render.size());
         ImGui::NextColumn();
         if (barcode_exceeds_tape) {
             ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "[!] Excede Rollo (%.1f mm)", barcode_mm_w);
         } else {
-            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Margen OK (%.1f mm)", (tape_w_mm - barcode_mm_w) * 0.5f);
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Margen Total: %.1f mm", total_free_mm);
+            ImGui::TextDisabled("Cinta: %.1f mm | QZ: %.1f mm", tape_margin_mm, qz_mm);
         }
         ImGui::Columns(1);
     }
@@ -666,7 +676,7 @@ void App::render_strip_preview_tab() {
 
     ImGui::Spacing();
 
-    // --- GPU Vertical Tape Roll Canvas (Unified Exact Subpixel Coordinates) ---
+    // --- GPU Vertical Tape Roll Canvas (Unique Barcodes per Batch Item + QZ Markers) ---
     ImVec2 avail = ImGui::GetContentRegionAvail();
     ImGui::BeginChild("GPUVerticalStripCanvas", ImVec2(avail.x, avail.y - 10), true, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     {
@@ -685,7 +695,7 @@ void App::render_strip_preview_tab() {
         draw_list->AddRectFilled(tape_min, tape_max, IM_COL32(252, 252, 252, 255), 3.0f);
         draw_list->AddRect(tape_min, tape_max, IM_COL32(110, 110, 110, 255), 3.0f, 0, 1.0f);
 
-        // 2. Draw Printable Margins
+        // 2. Draw Printable Margins (Outer edges of printable area)
         float margin_side_px = ((tape_w_mm - print_w_mm) * 0.5f) * dots_per_mm * scale;
         if (margin_side_px > 1.0f) {
             draw_list->AddLine(ImVec2(tape_min.x + margin_side_px, tape_min.y),
@@ -694,16 +704,20 @@ void App::render_strip_preview_tab() {
                                ImVec2(tape_max.x - margin_side_px, tape_max.y), IM_COL32(210, 210, 210, 160), 1.0f);
         }
 
-        // 3. Render labels vertically stacked downwards with 100% exact math
+        // 3. Render labels vertically stacked downwards with unique bit patterns per label
         float cur_y = tape_min.y + (lead_px * scale);
         ImFont* text_font = font_barcode_ ? font_barcode_ : ImGui::GetFont();
         float target_font_size = params_.text_size * scale;
-        int code_len = (int)current_encoded_bits_.length();
         float mod_w = params_.module_width * scale;
 
         for (size_t l = 0; l < labels_to_render.size(); l++) {
             float label_y0 = cur_y;
             float label_y1 = label_y0 + (label_on_tape_h * scale);
+
+            // Encode unique Code128 bits for this specific label
+            std::string label_bits = engine_.encode_to_bits(labels_to_render[l]);
+            if (label_bits.empty()) label_bits = current_encoded_bits_;
+            int code_len = (int)label_bits.length();
 
             if (!strip_settings_.rotate_90) {
                 // --- Normal Horizontal Barcode ---
@@ -712,8 +726,13 @@ void App::render_strip_preview_tab() {
                 float bar_y0 = label_y0 + (params_.margin_y * scale);
                 float bar_y1 = bar_y0 + (params_.bar_height * scale);
 
+                // Subtle Quiet Zone Zone indicators (very soft blue highlight)
+                draw_list->AddRectFilled(ImVec2(label_x0, bar_y0), ImVec2(bar_start_x, bar_y1),
+                                         IM_COL32(180, 220, 255, 45));
+
+                // Draw unique bars for this label
                 for (int i = 0; i < code_len; i++) {
-                    if (current_encoded_bits_[i] == '1') {
+                    if (label_bits[i] == '1') {
                         float bx0 = bar_start_x + (float)i * mod_w;
                         float bx1 = bx0 + mod_w;
                         draw_list->AddRectFilled(ImVec2(bx0, bar_y0), ImVec2(bx1, bar_y1), IM_COL32(0, 0, 0, 255));
@@ -724,6 +743,11 @@ void App::render_strip_preview_tab() {
                 float stop_x0 = bar_start_x + (float)code_len * mod_w;
                 float stop_x1 = stop_x0 + (2.0f * mod_w);
                 draw_list->AddRectFilled(ImVec2(stop_x0, bar_y0), ImVec2(stop_x1, bar_y1), IM_COL32(0, 0, 0, 255));
+
+                // Right quiet zone indicator
+                float label_right_x = label_x0 + (single_w * scale);
+                draw_list->AddRectFilled(ImVec2(stop_x1, bar_y0), ImVec2(label_right_x, bar_y1),
+                                         IM_COL32(180, 220, 255, 45));
 
                 // Crisp Text
                 ImVec2 text_size = text_font->CalcTextSizeA(target_font_size, FLT_MAX, 0.0f, labels_to_render[l].c_str());
@@ -739,8 +763,12 @@ void App::render_strip_preview_tab() {
                 float bar_x0 = label_x0 + (params_.margin_y * scale);
                 float bar_x1 = bar_x0 + (params_.bar_height * scale);
 
+                // Quiet zone highlights
+                draw_list->AddRectFilled(ImVec2(bar_x0, label_y0), ImVec2(bar_x1, bar_start_y),
+                                         IM_COL32(180, 220, 255, 45));
+
                 for (int i = 0; i < code_len; i++) {
-                    if (current_encoded_bits_[i] == '1') {
+                    if (label_bits[i] == '1') {
                         float by0 = bar_start_y + (float)i * mod_w;
                         float by1 = by0 + mod_w;
                         draw_list->AddRectFilled(ImVec2(bar_x0, by0), ImVec2(bar_x1, by1), IM_COL32(0, 0, 0, 255));
@@ -751,6 +779,11 @@ void App::render_strip_preview_tab() {
                 float stop_y0 = bar_start_y + (float)code_len * mod_w;
                 float stop_y1 = stop_y0 + (2.0f * mod_w);
                 draw_list->AddRectFilled(ImVec2(bar_x0, stop_y0), ImVec2(bar_x1, stop_y1), IM_COL32(0, 0, 0, 255));
+
+                // Bottom quiet zone highlight
+                float label_bottom_y = label_y0 + (label_on_tape_h * scale);
+                draw_list->AddRectFilled(ImVec2(bar_x0, stop_y1), ImVec2(bar_x1, label_bottom_y),
+                                         IM_COL32(180, 220, 255, 45));
 
                 // Rotated text alongside bars
                 float text_x = bar_x1 + (params_.text_gap_y * scale);

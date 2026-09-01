@@ -51,6 +51,9 @@ public:
     bool save_png(const BarcodeImage& img, const std::string& filepath);
     bool save_png(const std::string& text, const BarcodeParams& params, const std::string& filepath);
 
+    // Encode string to Code128 binary bit pattern string ("1101...")
+    std::string encode_to_bits(const std::string& text) const;
+
     // Validation helper
     bool validate_text(const std::string& text, std::string& out_error) const;
 
