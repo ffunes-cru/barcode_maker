@@ -130,4 +130,16 @@ private:
     void update_strip_texture();
     void update_batch_preview_cache();
     void clear_batch_preview_cache();
+
+    // Batch Chunk Printing System
+    int batch_chunk_size_ = 30;
+    bool batch_printing_active_ = false;
+    int batch_print_current_index_ = 0;
+    int batch_print_total_count_ = 0;
+    int batch_print_success_count_ = 0;
+    bool show_batch_chunk_dialog_ = false;
+    PrintJobSettings current_batch_job_;
+
+    void process_next_batch_chunk();
+    void render_batch_chunk_modal();
 };

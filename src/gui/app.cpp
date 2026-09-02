@@ -475,6 +475,7 @@ void App::render_ui() {
     ImGui::EndChild();
 
     render_print_modal();
+    render_batch_chunk_modal();
     render_update_modal();
     render_preset_abm_modal();
 
@@ -1198,7 +1199,17 @@ void App::render_print_modal() {
         } else {
             int count = (batch_array_len_limit_ > 0) ? std::min((int)batch_items_.size(), batch_array_len_limit_)
                                                      : (int)batch_items_.size();
-            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Modo Lote: Se imprimiran %d etiquetas consecutivas.", count);
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Modo Lote: %d etiquetas a imprimir en total.", count);
+            ImGui::Spacing();
+            ImGui::Text("Tandas de impresion (evita bloqueo del spooler):");
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(80);
+            ImGui::InputInt("##BatchChunkSize", &batch_chunk_size_);
+            if (batch_chunk_size_ < 1) batch_chunk_size_ = 1;
+            if (batch_chunk_size_ > 200) batch_chunk_size_ = 200;
+            int est_chunks = (count + batch_chunk_size_ - 1) / batch_chunk_size_;
+            ImGui::SameLine();
+            ImGui::TextDisabled("(~%d tandas con confirmacion)", est_chunks);
         }
 
         ImGui::Spacing();
@@ -1212,8 +1223,16 @@ void App::render_print_modal() {
 #ifdef _WIN32
         ImGui::Spacing();
         ImGui::Text("Metodo de Impresion en Windows:");
-        ImGui::RadioButton("Driver Windows GDI (Largo Dinamico DEVMODE) [Recomendado]", &print_job_settings_.print_method, 0);
-        ImGui::RadioButton("Spooler RAW Directo (Brother QL ESC/P-Raster)", &print_job_settings_.print_method, 1);
+        ImGui::RadioButton("Spooler RAW Directo (Brother QL ESC/P-Raster) [Recomendado]", &print_job_settings_.print_method, 1);
+        ImGui::RadioButton("Driver Windows GDI (Largo Dinamico DEVMODE)", &print_job_settings_.print_method, 0);
+
+        if (print_job_settings_.print_method == 1) {
+            ImGui::Indent(15.0f);
+            ImGui::Checkbox("Invertir Espejo Horizontal (Mirror X)", &print_job_settings_.mirror_x);
+            ImGui::SameLine();
+            ImGui::Checkbox("Centrar en Rollo (Auto-Center)", &print_job_settings_.auto_center);
+            ImGui::Unindent(15.0f);
+        }
 #endif
 
         ImGui::Spacing();
@@ -1221,47 +1240,148 @@ void App::render_print_modal() {
         ImGui::Spacing();
 
         if (ImGui::Button("[ Enviar a Impresora ]", ImVec2(200, 0))) {
-            std::string out_msg;
-            bool ok = false;
             PrintJobSettings job = print_job_settings_;
             job.fit_to_page = true; // Use fit-to-page so labels stretch to full roll width with dynamic length!
             job.roll_width_mm = strip_settings_.roll_width_mm;
             job.printable_width_mm = strip_settings_.printable_width_mm;
 
             if (input_mode_ == InputMode::Manual) {
+                std::string out_msg;
                 BarcodeImage single = engine_.generate(params_);
-                ok = print_manager_.print_rgba_buffer(single.rgba, single.width, single.height,
-                                                      job, out_msg);
+                bool ok = print_manager_.print_rgba_buffer(single.rgba, single.width, single.height,
+                                                           job, out_msg);
+                status_notification_ = out_msg;
+                status_notification_timer_ = 6.0f;
+                show_print_dialog_ = false;
+                ImGui::CloseCurrentPopup();
             } else {
                 int count = (batch_array_len_limit_ > 0) ? std::min((int)batch_items_.size(), batch_array_len_limit_)
                                                          : (int)batch_items_.size();
-                int printed = 0;
-                for (int i = 0; i < count; ++i) {
-                    BarcodeParams p = params_;
-                    p.input = batch_items_[i];
-                    BarcodeImage single = engine_.generate(p);
-                    PrintJobSettings item_job = job;
-                    item_job.copies = 1;
-                    if (i < count - 1 && !job.cut_each_label) {
-                        item_job.cut_at_end = false;
-                    }
-                    if (print_manager_.print_rgba_buffer(single.rgba, single.width, single.height,
-                                                          item_job, out_msg)) {
-                        printed++;
-                    }
-                }
-                ok = (printed > 0);
-                out_msg = "Lote enviado: " + std::to_string(printed) + " de " + std::to_string(count) + " etiquetas impresas";
+                batch_printing_active_ = true;
+                batch_print_current_index_ = 0;
+                batch_print_total_count_ = count;
+                batch_print_success_count_ = 0;
+                current_batch_job_ = job;
+
+                show_print_dialog_ = false;
+                ImGui::CloseCurrentPopup();
+
+                process_next_batch_chunk();
             }
-            status_notification_ = out_msg;
-            status_notification_timer_ = 6.0f;
-            show_print_dialog_ = false;
-            ImGui::CloseCurrentPopup();
         }
 
         ImGui::SameLine();
         if (ImGui::Button("Cancelar", ImVec2(100, 0))) {
             show_print_dialog_ = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+}
+
+void App::process_next_batch_chunk() {
+    if (!batch_printing_active_ || batch_print_current_index_ >= batch_print_total_count_) {
+        batch_printing_active_ = false;
+        show_batch_chunk_dialog_ = false;
+        return;
+    }
+
+    int start = batch_print_current_index_;
+    int end = std::min(start + batch_chunk_size_, batch_print_total_count_);
+
+    int chunk_success = 0;
+    std::string last_msg;
+
+    for (int i = start; i < end; ++i) {
+        BarcodeParams p = params_;
+        p.input = batch_items_[i];
+        BarcodeImage single = engine_.generate(p);
+
+        PrintJobSettings item_job = current_batch_job_;
+        item_job.copies = 1;
+        // Solo cortar al final de la tanda o si el usuario eligió cortar cada etiqueta
+        if (i < end - 1 && !current_batch_job_.cut_each_label) {
+            item_job.cut_at_end = false;
+        } else {
+            item_job.cut_at_end = current_batch_job_.cut_at_end;
+        }
+
+        if (print_manager_.print_rgba_buffer(single.rgba, single.width, single.height, item_job, last_msg)) {
+            chunk_success++;
+            batch_print_success_count_++;
+        }
+    }
+
+    batch_print_current_index_ = end;
+
+    if (batch_print_current_index_ < batch_print_total_count_) {
+        show_batch_chunk_dialog_ = true;
+    } else {
+        batch_printing_active_ = false;
+        show_batch_chunk_dialog_ = false;
+        status_notification_ = "¡Lote completo finalizado! " + std::to_string(batch_print_success_count_) + 
+                               " de " + std::to_string(batch_print_total_count_) + " etiquetas impresas.";
+        status_notification_timer_ = 8.0f;
+    }
+}
+
+void App::render_batch_chunk_modal() {
+    if (!show_batch_chunk_dialog_) return;
+
+    ImGui::OpenPopup("Confirmacion de Tanda de Impresion");
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(530, 270), ImGuiCond_Appearing);
+
+    if (ImGui::BeginPopupModal("Confirmacion de Tanda de Impresion", &show_batch_chunk_dialog_, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextColored(ImVec4(0.38f, 0.80f, 1.0f, 1.0f), "Tanda Completada con Exito");
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        ImGui::Text("Se enviaron las etiquetas %d a %d (Total enviadas: %d de %d).", 
+                    (batch_print_current_index_ - batch_chunk_size_ + 1 > 0 ? batch_print_current_index_ - batch_chunk_size_ + 1 : 1),
+                    batch_print_current_index_, 
+                    batch_print_success_count_, 
+                    batch_print_total_count_);
+        
+        float progress = (float)batch_print_current_index_ / (float)batch_print_total_count_;
+        ImGui::ProgressBar(progress, ImVec2(-1, 24), (std::to_string(batch_print_current_index_) + " / " + std::to_string(batch_print_total_count_)).c_str());
+
+        int remaining = batch_print_total_count_ - batch_print_current_index_;
+        int next_chunk = std::min(batch_chunk_size_, remaining);
+
+        ImGui::Spacing();
+        ImGui::Text("Quedan %d etiquetas pendientes en el archivo de lote.", remaining);
+        ImGui::Text("La siguiente tanda enviara %d etiquetas a la impresora.", next_chunk);
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        std::string next_btn_text = "Continuar Siguiente Tanda (" + std::to_string(next_chunk) + " etiq.)";
+        if (ImGui::Button(next_btn_text.c_str(), ImVec2(240, 36))) {
+            show_batch_chunk_dialog_ = false;
+            ImGui::CloseCurrentPopup();
+            process_next_batch_chunk();
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("Imprimir Todas las Restantes", ImVec2(210, 36))) {
+            batch_chunk_size_ = remaining;
+            show_batch_chunk_dialog_ = false;
+            ImGui::CloseCurrentPopup();
+            process_next_batch_chunk();
+        }
+
+        ImGui::Spacing();
+        if (ImGui::Button("Detener / Finalizar Aqui", ImVec2(180, 28))) {
+            batch_printing_active_ = false;
+            show_batch_chunk_dialog_ = false;
+            status_notification_ = "Impresion de lote finalizada por usuario. Se imprimieron " + 
+                                   std::to_string(batch_print_success_count_) + " etiquetas.";
+            status_notification_timer_ = 6.0f;
             ImGui::CloseCurrentPopup();
         }
 

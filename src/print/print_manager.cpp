@@ -221,9 +221,10 @@ static bool PrintGdiBuffer(const std::string& printer_name, const std::vector<ui
                 short paperLengthMm10 = (short)std::round((effective_height_px / dpi) * 25.4 * 10.0);
                 if (paperLengthMm10 < 127) paperLengthMm10 = 127; // Minimo corte mecanico Brother (~12.7 mm)
 
-                // Forzamos un tamaño de papel personalizado continuo
-                pDevMode->dmFields |= DM_PAPERSIZE | DM_PAPERLENGTH;
+                // Forzamos un tamaño de papel personalizado continuo con ANCHO y LARGO
+                pDevMode->dmFields |= DM_PAPERSIZE | DM_PAPERWIDTH | DM_PAPERLENGTH;
                 pDevMode->dmPaperSize = 0; // DMPAPER_USER: Tamaño continuo personalizado
+                pDevMode->dmPaperWidth = (short)std::round((settings.roll_width_mm > 0 ? settings.roll_width_mm : 103.6f) * 10.0f);
                 pDevMode->dmPaperLength = paperLengthMm10;
 
                 // MUY IMPORTANTE: Volvemos a llamar a DocumentProperties para que el 
@@ -261,7 +262,6 @@ static bool PrintGdiBuffer(const std::string& printer_name, const std::vector<ui
     }
 
     int dev_w = GetDeviceCaps(hdc, HORZRES);
-    int dev_h = GetDeviceCaps(hdc, VERTRES);
 
     int dest_w = width;
     int dest_h = height;
@@ -271,10 +271,6 @@ static bool PrintGdiBuffer(const std::string& printer_name, const std::vector<ui
     if (settings.fit_to_page && dev_w > 0) {
         dest_w = dev_w;
         dest_h = (int)std::round(((double)height * (double)dev_w) / (double)width);
-    }
-
-    if (dev_h > 0 && dest_h > dev_h) {
-        dest_h = dev_h;
     }
 
     BITMAPINFO bmi;
@@ -390,11 +386,25 @@ static bool PrintRawBrotherRaster(const std::string& printer_name, const std::ve
 
     // 7. Enviar lineas raster: QL-1110NWB utiliza 162 bytes por linea (1296 puntos)
     int bytes_per_line = (media_w > 62) ? 162 : 90;
+    int total_pins = bytes_per_line * 8; // 1296 puntos o 720 puntos
+
+    // Centrado de la imagen en los pines del cabezal
+    int offset_pins = 0;
+    if (settings.auto_center && width < total_pins) {
+        offset_pins = (total_pins - width) / 2;
+    }
+
     std::vector<uint8_t> line_buf(bytes_per_line, 0x00);
 
     for (int y = 0; y < height; y++) {
         std::fill(line_buf.begin(), line_buf.end(), 0x00);
-        for (int x = 0; x < width && x < (bytes_per_line * 8); x++) {
+        for (int x = 0; x < width; x++) {
+            int target_pin = offset_pins + x;
+            if (target_pin < 0 || target_pin >= total_pins) continue;
+
+            // Invertir posición de pin si mirror_x está activado (corrige efecto espejo de cabezal térmico)
+            int pin = settings.mirror_x ? (total_pins - 1 - target_pin) : target_pin;
+
             int idx = (y * width + x) * 4;
             uint8_t r = rgba[idx + 0];
             uint8_t g = rgba[idx + 1];
@@ -403,9 +413,9 @@ static bool PrintRawBrotherRaster(const std::string& printer_name, const std::ve
 
             bool is_black = (a > 128) && ((r * 299 + g * 587 + b * 114) / 1000 < 128);
             if (is_black) {
-                int byte_idx = x / 8;
-                int bit_idx = 7 - (x % 8);
-                if (byte_idx < bytes_per_line) {
+                int byte_idx = pin / 8;
+                int bit_idx = 7 - (pin % 8);
+                if (byte_idx >= 0 && byte_idx < bytes_per_line) {
                     line_buf[byte_idx] |= (1 << bit_idx);
                 }
             }

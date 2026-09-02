@@ -11,9 +11,11 @@ struct PrintJobSettings {
     int orientation = 3; // 3 = Portrait (-o orientation-requested=3), 4 = Landscape, 0 = system default
     bool cut_each_label = false;
     bool cut_at_end = true;
-    int print_method = 0; // 0 = GDI Driver (Largo Dinámico DEVMODE), 1 = Spooler RAW (Brother ESC/P-Raster)
+    int print_method = 1; // 0 = GDI Driver (Largo Dinámico DEVMODE), 1 = Spooler RAW (Brother ESC/P-Raster)
     float roll_width_mm = 103.6f;
     float printable_width_mm = 99.0f;
+    bool mirror_x = true;    // Invertir horizontalmente para corregir espejo en cabezal Brother
+    bool auto_center = true; // Centrar imagen en los 1296 pines del cabezal
 };
 
 class PrintManager {
