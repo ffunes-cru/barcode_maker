@@ -40,6 +40,7 @@ set(STUDIO_SOURCES
     src/main.cpp
     src/gui/app.cpp
     src/gui/strip_preview.cpp
+    src/gui/preset_manager.cpp
     src/print/print_manager.cpp
     src/updater/updater.cpp
     ${ENGINE_SOURCES}

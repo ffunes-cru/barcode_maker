@@ -7,6 +7,7 @@
 #include "../print/print_manager.hpp"
 #include "../updater/updater.hpp"
 #include "strip_preview.hpp"
+#include "preset_manager.hpp"
 
 struct ImFont;
 
@@ -30,16 +31,21 @@ private:
     void render_batch_table_tab();
     void render_print_modal();
     void render_update_modal();
+    void render_preset_abm_modal();
 
     void update_barcode_data();
     void load_batch_file(const std::string& filepath);
     void export_batch();
     void export_current_png();
     void export_strip_png();
-    void apply_brother_preset();
+
+    // Preset Operations
+    void apply_preset(const Preset& p);
+    void apply_preset_by_index(size_t index);
 
     BarcodeEngine engine_;
     PrintManager print_manager_;
+    PresetManager preset_manager_;
 
     // Fonts
     ImFont* font_ui_ = nullptr;
@@ -73,6 +79,17 @@ private:
     // Tab switching control
     int target_tab_index_ = 0;
     bool request_tab_switch_ = false;
+
+    // Active preset tracking
+    int selected_preset_idx_ = 0;
+
+    // Preset ABM Modal State
+    bool show_preset_abm_modal_ = false;
+    int abm_selected_preset_idx_ = 0;
+    char abm_preset_name_buf_[128] = "";
+    char abm_preset_desc_buf_[256] = "";
+    std::string abm_status_msg_;
+    float abm_status_timer_ = 0.0f;
 
     // Pan & Zoom controls for GPU preview
     float preview_zoom_ = 1.0f;
