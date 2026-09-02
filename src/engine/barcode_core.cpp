@@ -232,7 +232,29 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
 
     // Total modules across = left quiet zone + code modules + 2 stop modules + right quiet zone
     float total_modules = (float)code_len + 2.0f + (params.quiet_zone_x * 2.0f);
-    int image_width = (int)std::ceil(total_modules * mod_w);
+    int barcode_raw_w = (int)std::ceil(total_modules * mod_w);
+    int image_width = barcode_raw_w;
+
+    // Pre-measure FreeType text width if text is active
+    int text_width = 0;
+    if (ft_face_ && params.text_size > 0.0f) {
+        FT_Face face = (FT_Face)ft_face_;
+        int font_size = (int)std::round(params.text_size);
+        if (font_size < 6) font_size = 6;
+        FT_Set_Pixel_Sizes(face, 0, font_size);
+        for (char c : params.input) {
+            if (FT_Load_Char(face, c, FT_LOAD_DEFAULT) == 0) {
+                text_width += face->glyph->advance.x >> 6;
+            }
+        }
+        // If text is wider than the barcode, expand image_width so text has margin and is never clipped
+        float qz_px = params.quiet_zone_x * mod_w;
+        int min_needed_w = text_width + (int)std::round(qz_px * 2.0f);
+        if (min_needed_w > image_width) {
+            image_width = min_needed_w;
+        }
+    }
+
     int image_height = (int)std::ceil((params.margin_y * 2.0f) + params.bar_height + params.text_gap_y + params.text_size);
 
     if (image_width < 10 || image_height < 10) {
@@ -257,8 +279,9 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
         result.rgba[rgba_idx + 3] = 255;
     };
 
-    // 3. Draw barcode bars with exact fractional coordinates
-    float start_x = params.quiet_zone_x * mod_w;
+    // 3. Draw barcode bars with exact fractional coordinates (centered in image_width)
+    float raw_bar_span = total_modules * mod_w;
+    float start_x = ((float)image_width - raw_bar_span) * 0.5f + (params.quiet_zone_x * mod_w);
     float start_y = params.margin_y;
     float end_y = params.margin_y + params.bar_height;
 

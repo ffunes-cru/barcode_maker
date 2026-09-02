@@ -37,7 +37,7 @@ App::App() {
     print_job_settings_.printer_name = "Brother_QL-1110NWB";
     print_job_settings_.copies = 1;
     print_job_settings_.fit_to_page = true;
-    print_job_settings_.orientation = 0;
+    print_job_settings_.orientation = 3; // Portrait (-o orientation-requested=3)
 }
 
 App::~App() = default;
@@ -390,7 +390,7 @@ void App::render_left_panel() {
 
         float txt_mm = params_.text_size / (300.0f / 25.4f);
         ImGui::Text("Tamano de Texto: %.1f px (%.1f mm)", params_.text_size, txt_mm);
-        if (ImGui::SliderFloat("##TextSize", &params_.text_size, 8.0f, 60.0f, "%.1f px")) {
+        if (ImGui::SliderFloat("##TextSize", &params_.text_size, 8.0f, 250.0f, "%.1f px")) {
             update_barcode_data();
         }
 
@@ -617,11 +617,13 @@ void App::render_live_preview_tab() {
 
         // Draw barcode bars directly in GPU using unified float module_width
         float mod_w = params_.module_width * scale;
-        float bar_start_x = card_min.x + (params_.quiet_zone_x * mod_w);
+        int code_len = (int)current_encoded_bits_.length();
+        float total_code_mods = (float)code_len + 2.0f + (params_.quiet_zone_x * 2.0f);
+        float raw_bar_span = total_code_mods * mod_w;
+        float bar_start_x = card_min.x + ((barcode_w - raw_bar_span) * 0.5f) + (params_.quiet_zone_x * mod_w);
         float bar_y0 = card_min.y + (params_.margin_y * scale);
         float bar_y1 = bar_y0 + (params_.bar_height * scale);
 
-        int code_len = (int)current_encoded_bits_.length();
         for (int i = 0; i < code_len; i++) {
             if (current_encoded_bits_[i] == '1') {
                 float bx0 = bar_start_x + (float)i * mod_w;
@@ -636,9 +638,10 @@ void App::render_live_preview_tab() {
         draw_list->AddRectFilled(ImVec2(stop_x0, bar_y0), ImVec2(stop_x1, bar_y1), IM_COL32(0, 0, 0, 255));
 
         // Subtle Quiet Zone indicators (highlighting the safety margin)
-        draw_list->AddRectFilled(ImVec2(card_min.x, bar_y0), ImVec2(bar_start_x, bar_y1),
+        float qz_w = params_.quiet_zone_x * mod_w;
+        draw_list->AddRectFilled(ImVec2(bar_start_x - qz_w, bar_y0), ImVec2(bar_start_x, bar_y1),
                                  IM_COL32(180, 220, 255, 45));
-        draw_list->AddRectFilled(ImVec2(stop_x1, bar_y0), ImVec2(card_max.x, bar_y1),
+        draw_list->AddRectFilled(ImVec2(stop_x1, bar_y0), ImVec2(stop_x1 + qz_w, bar_y1),
                                  IM_COL32(180, 220, 255, 45));
 
         // High-Quality Crisp Text Rendering
@@ -969,10 +972,17 @@ void App::render_print_modal() {
 
         ImGui::Spacing();
 
-        static int print_target_mode = 1;
+        static int print_target_mode = 0; // Default to single label as user often prints individual labels
         ImGui::Text("Contenido a Imprimir:");
         ImGui::RadioButton("Codigo Actual (Etiqueta Individual)", &print_target_mode, 0);
         ImGui::RadioButton("Tira Continua Completa (Rollo Brother QL)", &print_target_mode, 1);
+
+        ImGui::Spacing();
+
+        ImGui::Text("Orientacion de Impresion:");
+        ImGui::RadioButton("Vertical / Portrait (-o orientation-requested=3) [Recomendado Brother QL]", &print_job_settings_.orientation, 3);
+        ImGui::RadioButton("Horizontal / Landscape (-o orientation-requested=4)", &print_job_settings_.orientation, 4);
+        ImGui::RadioButton("Predeterminado del sistema", &print_job_settings_.orientation, 0);
 
         ImGui::Spacing();
 
@@ -982,7 +992,25 @@ void App::render_print_modal() {
         ImGui::InputInt("##PrintCopies", &print_job_settings_.copies);
         if (print_job_settings_.copies < 1) print_job_settings_.copies = 1;
 
-        ImGui::Checkbox("Ajustar a la pagina (fit-to-page)", &print_job_settings_.fit_to_page);
+        ImGui::SameLine();
+        ImGui::Spacing();
+        ImGui::SameLine();
+        ImGui::Checkbox("Ajustar al ancho (fit-to-page)", &print_job_settings_.fit_to_page);
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        // Exact command preview
+        std::string printer_to_use = print_job_settings_.printer_name.empty() ? "Brother_QL-1110NWB" : print_job_settings_.printer_name;
+        std::string cmd_preview = "lp -d \"" + printer_to_use + "\"";
+        if (print_job_settings_.fit_to_page) cmd_preview += " -o fit-to-page";
+        if (print_job_settings_.orientation > 0) cmd_preview += " -o orientation-requested=" + std::to_string(print_job_settings_.orientation);
+        if (print_job_settings_.copies > 1) cmd_preview += " -n " + std::to_string(print_job_settings_.copies);
+        cmd_preview += (print_target_mode == 0 ? " " + params_.input + ".png" : " tira_continua.png");
+
+        ImGui::TextDisabled("Comando a ejecutar en segundo plano:");
+        ImGui::TextColored(ImVec4(0.45f, 0.88f, 0.55f, 1.0f), "%s", cmd_preview.c_str());
 
         ImGui::Spacing();
         ImGui::Separator();
@@ -1208,7 +1236,7 @@ void App::render_preset_abm_modal() {
 
                 ImGui::Text("Tamano Texto:");
                 ImGui::SetNextItemWidth(130);
-                ImGui::SliderFloat("##ABMTxtSz", &abm_edit_preset_.text_size, 8.0f, 60.0f, "%.1f px");
+                ImGui::SliderFloat("##ABMTxtSz", &abm_edit_preset_.text_size, 8.0f, 250.0f, "%.1f px");
 
                 ImGui::Text("Margen Superior/Inf (Y):");
                 ImGui::SetNextItemWidth(130);

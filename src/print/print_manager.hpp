@@ -5,10 +5,10 @@
 #include <cstdint>
 
 struct PrintJobSettings {
-    std::string printer_name = "";
+    std::string printer_name = "Brother_QL-1110NWB";
     int copies = 1;
     bool fit_to_page = true;
-    int orientation = 0; // 0 = Auto / Normal, 3 = Portrait, 4 = Landscape (90 deg)
+    int orientation = 3; // 3 = Portrait (-o orientation-requested=3), 4 = Landscape (90 deg), 0 = system default
     bool cut_each_label = false;
     bool cut_at_end = true;
 };

@@ -210,7 +210,7 @@ static int run_gui(int argc, char* argv[]) {
 
     if (!loaded_font_path.empty()) {
         font_ui = io.Fonts->AddFontFromFileTTF(loaded_font_path.c_str(), 16.0f, &font_cfg);
-        font_barcode = io.Fonts->AddFontFromFileTTF(loaded_font_path.c_str(), 42.0f, &font_cfg);
+        font_barcode = io.Fonts->AddFontFromFileTTF(loaded_font_path.c_str(), 96.0f, &font_cfg);
     }
 
     if (!font_ui) {
