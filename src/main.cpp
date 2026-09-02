@@ -158,6 +158,7 @@ static int run_gui(int argc, char* argv[]) {
 
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
     glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+    glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
 
     GLFWwindow* window = glfwCreateWindow(1360, 840, "Code128 Studio", nullptr, nullptr);
     if (!window) {
@@ -166,6 +167,7 @@ static int run_gui(int argc, char* argv[]) {
         return 1;
     }
 
+    glfwMaximizeWindow(window);
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
 
@@ -234,6 +236,24 @@ static int run_gui(int argc, char* argv[]) {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
+
+        // F11 Fullscreen Toggle
+        if (ImGui::IsKeyPressed(ImGuiKey_F11, false)) {
+            static bool is_fullscreen = false;
+            static int prev_x = 100, prev_y = 100, prev_w = 1360, prev_h = 840;
+            if (!is_fullscreen) {
+                glfwGetWindowPos(window, &prev_x, &prev_y);
+                glfwGetWindowSize(window, &prev_w, &prev_h);
+                GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+                const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+                glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+                is_fullscreen = true;
+            } else {
+                glfwSetWindowMonitor(window, nullptr, prev_x, prev_y, prev_w, prev_h, 0);
+                glfwMaximizeWindow(window);
+                is_fullscreen = false;
+            }
+        }
 
         app.render_ui();
 
