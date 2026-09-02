@@ -314,6 +314,13 @@ char *libattopng_get_data(libattopng_t *png, size_t *len) {
     libattopng_out_uint8(png, 0); /* interlace method */
     libattopng_end_chunk(png);
 
+    /* pHYs - Standard 300 DPI (11811 pixels per meter) */
+    libattopng_new_chunk(png, "pHYs", 9);
+    libattopng_out_uint32(png, libattopng_swap32(11811));
+    libattopng_out_uint32(png, libattopng_swap32(11811));
+    libattopng_out_uint8(png, 1); /* meter unit */
+    libattopng_end_chunk(png);
+
     /* palette */
     if (png->type == PNG_PALETTE) {
         char entry[3];
