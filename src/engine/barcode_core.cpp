@@ -256,11 +256,15 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
                 if (desc > max_descender_y) max_descender_y = desc;
             }
         }
-        // If text is wider than the barcode, expand image_width so text has margin and is never clipped
-        float qz_px = params.quiet_zone_x * mod_w;
-        int min_needed_w = text_width + (int)std::round(qz_px * 2.0f);
-        if (min_needed_w > image_width) {
-            image_width = min_needed_w;
+        // If text is wider than the barcode, expand image_width so text has margin and is never clipped,
+        // but ONLY if quiet_zone_x > 0. When quiet_zone_x == 0, the user explicitly demands zero lateral margins,
+        // so the barcode bars must strictly span 100% of image_width from edge to edge!
+        if (params.quiet_zone_x > 0.0f) {
+            float qz_px = params.quiet_zone_x * mod_w;
+            int min_needed_w = text_width + (int)std::round(qz_px * 2.0f);
+            if (min_needed_w > image_width) {
+                image_width = min_needed_w;
+            }
         }
     }
 

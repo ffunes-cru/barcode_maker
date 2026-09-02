@@ -471,6 +471,16 @@ void App::render_left_panel() {
         if (ImGui::SliderFloat("##TextSize", &params_.text_size, 8.0f, 250.0f, "%.1f px")) {
             update_barcode_data();
         }
+        if (ImGui::Button("[ Auto-Ajustar Texto al Ancho de Barras ]", ImVec2(-1, 0))) {
+            int code_len = (int)current_encoded_bits_.length();
+            if (code_len > 0 && !params_.input.empty()) {
+                float bar_span = ((float)code_len + 2.0f) * params_.module_width;
+                float approx_char_w = 0.58f;
+                float target_size = bar_span / ((float)params_.input.length() * approx_char_w);
+                params_.text_size = std::clamp(target_size, 8.0f, 250.0f);
+                update_barcode_data();
+            }
+        }
 
         float qz_mm = (params_.quiet_zone_x * params_.module_width) / (300.0f / 25.4f);
         ImGui::Text("Quiet Zone (Margen X): %.1f mod (%.1f mm)", params_.quiet_zone_x, qz_mm);
