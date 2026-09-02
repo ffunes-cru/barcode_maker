@@ -359,8 +359,39 @@ static bool PrintRawBrotherRaster(const std::string& printer_name, const std::ve
 
     // 4. Informacion de medio: ESC i z
     uint8_t media_w = (uint8_t)std::clamp((int)std::round(settings.roll_width_mm), 12, 102);
-    uint32_t raster_lines = (uint32_t)height;
+    int bytes_per_line = (media_w > 62) ? 162 : 90;
+    int total_pins = bytes_per_line * 8; // 1296 puntos para cabezal 4" o 720 puntos
 
+    // Fit-to-Page: escalar imagen para ocupar el ancho imprimible de la cinta
+    int print_w = width;
+    int print_h = height;
+    double scale = 1.0;
+
+    if (settings.fit_to_page && width > 0) {
+        float target_mm = settings.printable_width_mm > 0 ? settings.printable_width_mm : 99.0f;
+        int target_dots = (int)std::round((target_mm / 25.4f) * 300.0f);
+        if (target_dots > total_pins) target_dots = total_pins;
+
+        scale = (double)target_dots / (double)width;
+        print_w = target_dots;
+        print_h = (int)std::round((double)height * scale);
+    }
+
+    uint32_t raster_lines = (uint32_t)print_h;
+
+    std::vector<uint8_t> stream;
+    stream.reserve(256 + print_h * (bytes_per_line + 3));
+
+    // 1. Invalidar estado anterior: 200 bytes de 0x00
+    stream.insert(stream.end(), 200, 0x00);
+
+    // 2. ESC @ (Inicializar)
+    stream.push_back(0x1B); stream.push_back(0x40);
+
+    // 3. Conmutar a modo Raster: ESC i a 0x01
+    stream.push_back(0x1B); stream.push_back(0x69); stream.push_back(0x61); stream.push_back(0x01);
+
+    // 4. Informacion de medio: ESC i z
     stream.push_back(0x1B); stream.push_back(0x69); stream.push_back(0x7A);
     stream.push_back(0x84); // Flags: media type + media width + raster lines validos
     stream.push_back(0x0A); // Tipo de medio: Continuous Tape (Rollo continuo)
@@ -373,39 +404,43 @@ static bool PrintRawBrotherRaster(const std::string& printer_name, const std::ve
     stream.push_back(0x00); // Numero de pagina
     stream.push_back(0x00); // Reservado
 
-    // 5. Ajuste de cuchilla / corte: ESC i M
+    // 5. Ajuste de cuchilla / corte: ESC i M (Auto-Cut) y ESC i A (Frecuencia de corte)
+    // NOTA: Se evita ESC i K 0x08 ya que forzaría un avance y doble corte residual innecesario
     if (settings.cut_at_end) {
         stream.push_back(0x1B); stream.push_back(0x69); stream.push_back(0x4D); stream.push_back(0x40); // Auto-Cut ON
-        stream.push_back(0x1B); stream.push_back(0x69); stream.push_back(0x4B); stream.push_back(0x08); // Cut at end
+        stream.push_back(0x1B); stream.push_back(0x69); stream.push_back(0x41); stream.push_back(0x01); // Cortar cada etiqueta (1 página)
     } else {
         stream.push_back(0x1B); stream.push_back(0x69); stream.push_back(0x4D); stream.push_back(0x00); // Auto-Cut OFF
     }
 
-    // 6. Margen: ESC i d 0x00 0x00
+    // 6. Margen: ESC i d 0x00 0x00 (margen 0)
     stream.push_back(0x1B); stream.push_back(0x69); stream.push_back(0x64); stream.push_back(0x00); stream.push_back(0x00);
-
-    // 7. Enviar lineas raster: QL-1110NWB utiliza 162 bytes por linea (1296 puntos)
-    int bytes_per_line = (media_w > 62) ? 162 : 90;
-    int total_pins = bytes_per_line * 8; // 1296 puntos o 720 puntos
 
     // Centrado de la imagen en los pines del cabezal
     int offset_pins = 0;
-    if (settings.auto_center && width < total_pins) {
-        offset_pins = (total_pins - width) / 2;
+    if (settings.auto_center && print_w < total_pins) {
+        offset_pins = (total_pins - print_w) / 2;
     }
 
     std::vector<uint8_t> line_buf(bytes_per_line, 0x00);
 
-    for (int y = 0; y < height; y++) {
+    for (int y = 0; y < print_h; y++) {
         std::fill(line_buf.begin(), line_buf.end(), 0x00);
-        for (int x = 0; x < width; x++) {
+
+        int src_y = (int)(y / scale);
+        if (src_y >= height) src_y = height - 1;
+
+        for (int x = 0; x < print_w; x++) {
             int target_pin = offset_pins + x;
             if (target_pin < 0 || target_pin >= total_pins) continue;
 
             // Invertir posición de pin si mirror_x está activado (corrige efecto espejo de cabezal térmico)
             int pin = settings.mirror_x ? (total_pins - 1 - target_pin) : target_pin;
 
-            int idx = (y * width + x) * 4;
+            int src_x = (int)(x / scale);
+            if (src_x >= width) src_x = width - 1;
+
+            int idx = (src_y * width + src_x) * 4;
             uint8_t r = rgba[idx + 0];
             uint8_t g = rgba[idx + 1];
             uint8_t b = rgba[idx + 2];
