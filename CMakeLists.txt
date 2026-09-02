@@ -88,7 +88,7 @@ if (UNIX)
 endif()
 
 if (WIN32)
-    target_link_libraries(code128_studio PRIVATE winspool ws2_32)
+    target_link_libraries(code128_studio PRIVATE winspool ws2_32 gdi32)
 endif()
 
 # 4. Standalone Auto-Updater Executable

@@ -168,6 +168,113 @@ bool PrintManager::print_file(const std::string& file_path, const PrintJobSettin
 #endif
 }
 
+#ifdef _WIN32
+static bool PrintGdiBuffer(const std::string& printer_name, const std::vector<uint8_t>& rgba, int width, int height,
+                           const PrintJobSettings& settings, std::string& out_msg) {
+    if (rgba.empty() || width <= 0 || height <= 0) {
+        out_msg = "Buffer de imagen inválido";
+        return false;
+    }
+
+    HANDLE hPrinter = NULL;
+    PDEVMODEA pDevMode = NULL;
+    std::vector<BYTE> devModeBuf;
+    if (OpenPrinterA((LPSTR)printer_name.c_str(), &hPrinter, NULL)) {
+        LONG dmSize = DocumentPropertiesA(NULL, hPrinter, (LPSTR)printer_name.c_str(), NULL, NULL, 0);
+        if (dmSize > 0) {
+            devModeBuf.resize(dmSize);
+            pDevMode = (PDEVMODEA)devModeBuf.data();
+            if (DocumentPropertiesA(NULL, hPrinter, (LPSTR)printer_name.c_str(), pDevMode, NULL, DM_OUT_BUFFER) == IDOK) {
+                pDevMode->dmFields |= DM_COPIES;
+                pDevMode->dmCopies = (short)std::max(1, settings.copies);
+                if (settings.orientation > 0) {
+                    pDevMode->dmFields |= DM_ORIENTATION;
+                    pDevMode->dmOrientation = (settings.orientation == 4) ? DMORIENT_LANDSCAPE : DMORIENT_PORTRAIT;
+                }
+            } else {
+                pDevMode = NULL;
+            }
+        }
+        ClosePrinter(hPrinter);
+    }
+
+    HDC hdc = CreateDCA("WINSPOOL", printer_name.c_str(), NULL, pDevMode);
+    if (!hdc) {
+        out_msg = "No se pudo abrir la impresora Windows: " + printer_name;
+        return false;
+    }
+
+    DOCINFOA docInfo;
+    ZeroMemory(&docInfo, sizeof(docInfo));
+    docInfo.cbSize = sizeof(docInfo);
+    docInfo.lpszDocName = "Code128 Studio Print Job";
+
+    if (StartDocA(hdc, &docInfo) <= 0) {
+        DeleteDC(hdc);
+        out_msg = "Error en StartDocA para " + printer_name;
+        return false;
+    }
+
+    if (StartPage(hdc) <= 0) {
+        AbortDoc(hdc);
+        DeleteDC(hdc);
+        out_msg = "Error en StartPage para " + printer_name;
+        return false;
+    }
+
+    int dev_w = GetDeviceCaps(hdc, HORZRES);
+
+    int dest_w = width;
+    int dest_h = height;
+    int dest_x = 0;
+    int dest_y = 0;
+
+    if (settings.fit_to_page && dev_w > 0) {
+        dest_w = dev_w;
+        dest_h = (int)std::round(((double)height * (double)dev_w) / (double)width);
+    }
+
+    BITMAPINFO bmi;
+    ZeroMemory(&bmi, sizeof(bmi));
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = width;
+    bmi.bmiHeader.biHeight = -height; // Top-down bitmap
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    std::vector<uint8_t> bgra(width * height * 4);
+    for (int i = 0; i < width * height; ++i) {
+        bgra[i * 4 + 0] = rgba[i * 4 + 2]; // B
+        bgra[i * 4 + 1] = rgba[i * 4 + 1]; // G
+        bgra[i * 4 + 2] = rgba[i * 4 + 0]; // R
+        bgra[i * 4 + 3] = rgba[i * 4 + 3]; // A
+    }
+
+    SetStretchBltMode(hdc, HALFTONE);
+    SetBrushOrgEx(hdc, 0, 0, NULL);
+
+    int stretch_res = StretchDIBits(
+        hdc,
+        dest_x, dest_y, dest_w, dest_h,
+        0, 0, width, height,
+        bgra.data(), &bmi, DIB_RGB_COLORS, SRCCOPY
+    );
+
+    EndPage(hdc);
+    EndDoc(hdc);
+    DeleteDC(hdc);
+
+    if (stretch_res == GDI_ERROR) {
+        out_msg = "Error enviando mapa de bits GDI al spooler";
+        return false;
+    }
+
+    out_msg = "Trabajo impreso correctamente en '" + printer_name + "'";
+    return true;
+}
+#endif
+
 bool PrintManager::print_rgba_buffer(const std::vector<uint8_t>& rgba, int width, int height,
                                     const PrintJobSettings& settings, std::string& out_message) {
     if (rgba.empty() || width <= 0 || height <= 0) {
@@ -175,6 +282,11 @@ bool PrintManager::print_rgba_buffer(const std::vector<uint8_t>& rgba, int width
         return false;
     }
 
+    std::string printer = settings.printer_name.empty() ? default_printer_ : settings.printer_name;
+
+#ifdef _WIN32
+    return PrintGdiBuffer(printer, rgba, width, height, settings, out_message);
+#else
     fs::path temp_path = fs::temp_directory_path() / "code128_print_job.png";
 
     // Encode to grayscale PNG
@@ -201,4 +313,5 @@ bool PrintManager::print_rgba_buffer(const std::vector<uint8_t>& rgba, int width
 
     bool ok = print_file(temp_path.string(), settings, out_message);
     return ok;
+#endif
 }
