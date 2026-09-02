@@ -7,7 +7,7 @@
 struct PrintJobSettings {
     std::string printer_name = "Brother_QL-1110NWB";
     int copies = 1;
-    bool fit_to_page = true;
+    bool fit_to_page = false; // Default to false so CUPS prints native 1:1 without shrinking
     int orientation = 3; // 3 = Portrait (-o orientation-requested=3), 4 = Landscape (90 deg), 0 = system default
     bool cut_each_label = false;
     bool cut_at_end = true;

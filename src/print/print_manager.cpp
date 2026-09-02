@@ -140,14 +140,9 @@ bool PrintManager::print_file(const std::string& file_path, const PrintJobSettin
         cmd << " -n " << settings.copies;
     }
 
-    // Explicit continuous roll media and 1:1 scaling:
-    cmd << " -o PageSize=103X1";
     if (settings.fit_to_page) {
         cmd << " -o fit-to-page";
-    } else {
-        cmd << " -o print-scaling=none";
     }
-    cmd << " -o ppi=300";
     cmd << " -o BrCutAtEnd=ON";
     cmd << " \"" << file_path << "\" 2>&1";
 
