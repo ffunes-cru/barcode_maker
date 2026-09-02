@@ -177,7 +177,7 @@ static int run_gui(int argc, char* argv[]) {
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
     glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
 
-    GLFWwindow* window = glfwCreateWindow(1360, 840, "Code128 Studio - Windows 11 Fluent Suite", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(1360, 840, "Code128 Studio", nullptr, nullptr);
     if (!window) {
         std::cerr << "Failed to create GLFW window\n";
         glfwTerminate();

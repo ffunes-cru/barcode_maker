@@ -564,7 +564,7 @@ void App::render_live_preview_tab() {
     }
 
     // Professional Clean Metric Card
-    ImGui::BeginChild("MetricSummaryCard", ImVec2(0, 48), true);
+    ImGui::BeginChild("MetricSummaryCard", ImVec2(0, 52), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     {
         float mm_w = (float)calculated_width_px_ / (300.0f / 25.4f);
         float mm_h = (float)calculated_height_px_ / (300.0f / 25.4f);
@@ -694,7 +694,7 @@ void App::render_strip_preview_tab() {
     float tape_margin_mm = std::max(0.0f, (tape_w_mm - barcode_mm_w) * 0.5f);
     float total_free_mm = tape_margin_mm + qz_mm;
 
-    ImGui::BeginChild("StripMetricCard", ImVec2(0, 52), true);
+    ImGui::BeginChild("StripMetricCard", ImVec2(0, 62), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     {
         ImGui::Columns(4, "strip_metrics_col", false);
         ImGui::Text("Ancho Rollo: %.1f cm (%.1f mm)", tape_w_cm, tape_w_mm);
@@ -1094,8 +1094,8 @@ void App::render_preset_abm_modal() {
 
     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSizeConstraints(ImVec2(880, 560), ImVec2(1600, 1200));
-    ImGui::SetNextWindowSize(ImVec2(920, 600), ImGuiCond_Appearing);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(960, 680), ImVec2(1600, 1200));
+    ImGui::SetNextWindowSize(ImVec2(980, 700), ImGuiCond_Always);
 
     if (ImGui::BeginPopupModal("ABM de Presets - Configuracion de Etiquetas", &show_preset_abm_modal_, ImGuiWindowFlags_None)) {
         ImGui::TextColored(ImVec4(0.38f, 0.80f, 1.0f, 1.0f), "ADMINISTRADOR DE PRESETS (ALTA / BAJA / MODIFICACION)");
@@ -1107,7 +1107,7 @@ void App::render_preset_abm_modal() {
             ImGui::Spacing();
         }
 
-        float left_col_w = 260.0f;
+        float left_col_w = 270.0f;
         float right_col_w = ImGui::GetContentRegionAvail().x - left_col_w - 15.0f;
 
         // --- Left: Presets List ---
@@ -1134,8 +1134,9 @@ void App::render_preset_abm_modal() {
 
         ImGui::SameLine();
 
-        // --- Right: Interactive Preset Editor ---
-        ImGui::BeginChild("ABMPresetDetailCol", ImVec2(right_col_w, ImGui::GetContentRegionAvail().y - 50.0f), true);
+        // --- Right: Interactive Preset Editor (No unwanted scrollbars) ---
+        ImGui::BeginChild("ABMPresetDetailCol", ImVec2(right_col_w, ImGui::GetContentRegionAvail().y - 50.0f), true,
+                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         {
             const Preset* current_p = preset_manager_.get_preset(abm_selected_preset_idx_);
             if (current_p) {
