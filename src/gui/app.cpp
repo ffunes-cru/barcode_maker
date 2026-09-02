@@ -161,14 +161,17 @@ void App::update_batch_preview_cache() {
     clear_batch_preview_cache();
     if (batch_items_.empty()) return;
 
-    // Show a lightweight sample of at most 3-4 labels starting at the active item
+    // Show a lightweight sample of at most 4 labels starting at the active item
     int total = (int)batch_items_.size();
-    int max_items = std::min(4, total);
     int start_idx = selected_batch_index_;
-    if (start_idx < 0 || start_idx >= total) start_idx = 0;
+    if (start_idx < 0) start_idx = 0;
+    if (start_idx >= total) start_idx = total - 1;
+
+    int max_items = std::min(4, total - start_idx);
+    if (max_items < 1) max_items = 1;
 
     for (int i = 0; i < max_items; i++) {
-        int idx = (start_idx + i) % total;
+        int idx = start_idx + i;
         BarcodeParams p = params_;
         p.input = batch_items_[idx];
         BarcodeImage img = engine_.generate(p);
@@ -1039,17 +1042,9 @@ void App::render_strip_preview_tab() {
                 dl->AddImage((ImTextureID)(intptr_t)cur_tex, bc_p0, bc_p1);
             }
 
-            // Highlight currently selected item in batch
-            if (is_batch_active && i == selected_batch_index_) {
-                dl->AddRect(ImVec2(bc_p0.x - 2.0f, bc_p0.y - 2.0f),
-                            ImVec2(bc_p1.x + 2.0f, bc_p1.y + 2.0f),
-                            IM_COL32(0, 150, 255, 255), 2.0f, 0, 2.5f);
-                dl->AddText(ImVec2(tape_p0.x - 70.0f, cur_y + 4.0f),
-                            IM_COL32(0, 150, 255, 255), "[Activo]");
-            }
-
             // Annotation on right margin of the tape
-            std::string tag = is_batch_active ? ("#" + std::to_string(i + 1) + ": " + item_code)
+            int item_idx_num = is_batch_active ? (selected_batch_index_ + i + 1) : (i + 1);
+            std::string tag = is_batch_active ? ("#" + std::to_string(item_idx_num) + ": " + item_code)
                                               : ("Copia " + std::to_string(i + 1));
             dl->AddText(ImVec2(tape_p1.x + 8.0f, cur_y + 4.0f),
                         IM_COL32(160, 160, 175, 255), tag.c_str());
