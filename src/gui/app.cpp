@@ -1209,6 +1209,13 @@ void App::render_print_modal() {
             ImGui::Checkbox("Cortar cada etiqueta individual", &print_job_settings_.cut_each_label);
         }
 
+#ifdef _WIN32
+        ImGui::Spacing();
+        ImGui::Text("Metodo de Impresion en Windows:");
+        ImGui::RadioButton("Driver Windows GDI (Largo Dinamico DEVMODE) [Recomendado]", &print_job_settings_.print_method, 0);
+        ImGui::RadioButton("Spooler RAW Directo (Brother QL ESC/P-Raster)", &print_job_settings_.print_method, 1);
+#endif
+
         ImGui::Spacing();
         ImGui::Separator();
         ImGui::Spacing();
@@ -1218,6 +1225,8 @@ void App::render_print_modal() {
             bool ok = false;
             PrintJobSettings job = print_job_settings_;
             job.fit_to_page = true; // Use fit-to-page so labels stretch to full roll width with dynamic length!
+            job.roll_width_mm = strip_settings_.roll_width_mm;
+            job.printable_width_mm = strip_settings_.printable_width_mm;
 
             if (input_mode_ == InputMode::Manual) {
                 BarcodeImage single = engine_.generate(params_);

@@ -205,6 +205,30 @@ static bool PrintGdiBuffer(const std::string& printer_name, const std::vector<ui
                     pDevMode->dmFields |= DM_ORIENTATION;
                     pDevMode->dmOrientation = (settings.orientation == 4) ? DMORIENT_LANDSCAPE : DMORIENT_PORTRAIT;
                 }
+
+                // --- SOLUCION PARA EL LARGO DINAMICO EN GDI ---
+                // La Brother QL-1110NWB imprime a 300 DPI.
+                // Calculamos el largo fisico necesario en base a los pixeles de la imagen (height).
+                // dmPaperLength espera el valor expresado en decimas de milimetro (1/10 mm).
+                double dpi = 300.0;
+                double effective_height_px = (double)height;
+                if (settings.fit_to_page && width > 0) {
+                    double print_w_mm = settings.printable_width_mm > 0 ? (double)settings.printable_width_mm : 99.0;
+                    double target_dots = (print_w_mm / 25.4) * dpi;
+                    effective_height_px = ((double)height * target_dots) / (double)width;
+                }
+
+                short paperLengthMm10 = (short)std::round((effective_height_px / dpi) * 25.4 * 10.0);
+                if (paperLengthMm10 < 127) paperLengthMm10 = 127; // Minimo corte mecanico Brother (~12.7 mm)
+
+                // Forzamos un tamaño de papel personalizado continuo
+                pDevMode->dmFields |= DM_PAPERSIZE | DM_PAPERLENGTH;
+                pDevMode->dmPaperSize = 0; // DMPAPER_USER: Tamaño continuo personalizado
+                pDevMode->dmPaperLength = paperLengthMm10;
+
+                // MUY IMPORTANTE: Volvemos a llamar a DocumentProperties para que el 
+                // driver de Brother valide e integre estos cambios antes de generar el DC
+                DocumentPropertiesA(NULL, hPrinter, (LPSTR)printer_name.c_str(), pDevMode, pDevMode, DM_IN_BUFFER | DM_OUT_BUFFER);
             } else {
                 pDevMode = NULL;
             }
@@ -237,6 +261,7 @@ static bool PrintGdiBuffer(const std::string& printer_name, const std::vector<ui
     }
 
     int dev_w = GetDeviceCaps(hdc, HORZRES);
+    int dev_h = GetDeviceCaps(hdc, VERTRES);
 
     int dest_w = width;
     int dest_h = height;
@@ -246,6 +271,10 @@ static bool PrintGdiBuffer(const std::string& printer_name, const std::vector<ui
     if (settings.fit_to_page && dev_w > 0) {
         dest_w = dev_w;
         dest_h = (int)std::round(((double)height * (double)dev_w) / (double)width);
+    }
+
+    if (dev_h > 0 && dest_h > dev_h) {
+        dest_h = dev_h;
     }
 
     BITMAPINFO bmi;
@@ -284,7 +313,126 @@ static bool PrintGdiBuffer(const std::string& printer_name, const std::vector<ui
         return false;
     }
 
-    out_msg = "Trabajo impreso correctamente en '" + printer_name + "'";
+    out_msg = "Trabajo impreso correctamente en '" + printer_name + "' (GDI Dinamico)";
+    return true;
+}
+
+// Spooler RAW Directo para impresoras Brother QL (Comandos ESC/P-Raster nativos)
+static bool PrintRawBrotherRaster(const std::string& printer_name, const std::vector<uint8_t>& rgba, int width, int height,
+                                  const PrintJobSettings& settings, std::string& out_msg) {
+    if (rgba.empty() || width <= 0 || height <= 0) {
+        out_msg = "Buffer de imagen inválido";
+        return false;
+    }
+
+    HANDLE hPrinter = NULL;
+    if (!OpenPrinterA((LPSTR)printer_name.c_str(), &hPrinter, NULL)) {
+        out_msg = "No se pudo abrir la impresora en modo RAW: " + printer_name;
+        return false;
+    }
+
+    DOC_INFO_1A docInfo;
+    docInfo.pDocName = (LPSTR)"Code128 Raw Brother Raster Job";
+    docInfo.pOutputFile = NULL;
+    docInfo.pDatatype = (LPSTR)"RAW";
+
+    if (StartDocPrinterA(hPrinter, 1, (LPBYTE)&docInfo) == 0) {
+        ClosePrinter(hPrinter);
+        out_msg = "Error al iniciar trabajo RAW (StartDocPrinterA)";
+        return false;
+    }
+
+    if (!StartPagePrinter(hPrinter)) {
+        EndDocPrinter(hPrinter);
+        ClosePrinter(hPrinter);
+        out_msg = "Error en StartPagePrinter";
+        return false;
+    }
+
+    std::vector<uint8_t> stream;
+    stream.reserve(256 + height * 170);
+
+    // 1. Invalidar estado anterior: 200 bytes de 0x00
+    stream.insert(stream.end(), 200, 0x00);
+
+    // 2. ESC @ (Inicializar)
+    stream.push_back(0x1B); stream.push_back(0x40);
+
+    // 3. Conmutar a modo Raster: ESC i a 0x01
+    stream.push_back(0x1B); stream.push_back(0x69); stream.push_back(0x61); stream.push_back(0x01);
+
+    // 4. Informacion de medio: ESC i z
+    uint8_t media_w = (uint8_t)std::clamp((int)std::round(settings.roll_width_mm), 12, 102);
+    uint32_t raster_lines = (uint32_t)height;
+
+    stream.push_back(0x1B); stream.push_back(0x69); stream.push_back(0x7A);
+    stream.push_back(0x84); // Flags: media type + media width + raster lines validos
+    stream.push_back(0x0A); // Tipo de medio: Continuous Tape (Rollo continuo)
+    stream.push_back(media_w); // Ancho en mm (102 o 62)
+    stream.push_back(0x00); // Largo: 0 (continuo)
+    stream.push_back((uint8_t)(raster_lines & 0xFF));
+    stream.push_back((uint8_t)((raster_lines >> 8) & 0xFF));
+    stream.push_back((uint8_t)((raster_lines >> 16) & 0xFF));
+    stream.push_back((uint8_t)((raster_lines >> 24) & 0xFF));
+    stream.push_back(0x00); // Numero de pagina
+    stream.push_back(0x00); // Reservado
+
+    // 5. Ajuste de cuchilla / corte: ESC i M
+    if (settings.cut_at_end) {
+        stream.push_back(0x1B); stream.push_back(0x69); stream.push_back(0x4D); stream.push_back(0x40); // Auto-Cut ON
+        stream.push_back(0x1B); stream.push_back(0x69); stream.push_back(0x4B); stream.push_back(0x08); // Cut at end
+    } else {
+        stream.push_back(0x1B); stream.push_back(0x69); stream.push_back(0x4D); stream.push_back(0x00); // Auto-Cut OFF
+    }
+
+    // 6. Margen: ESC i d 0x00 0x00
+    stream.push_back(0x1B); stream.push_back(0x69); stream.push_back(0x64); stream.push_back(0x00); stream.push_back(0x00);
+
+    // 7. Enviar lineas raster: QL-1110NWB utiliza 162 bytes por linea (1296 puntos)
+    int bytes_per_line = (media_w > 62) ? 162 : 90;
+    std::vector<uint8_t> line_buf(bytes_per_line, 0x00);
+
+    for (int y = 0; y < height; y++) {
+        std::fill(line_buf.begin(), line_buf.end(), 0x00);
+        for (int x = 0; x < width && x < (bytes_per_line * 8); x++) {
+            int idx = (y * width + x) * 4;
+            uint8_t r = rgba[idx + 0];
+            uint8_t g = rgba[idx + 1];
+            uint8_t b = rgba[idx + 2];
+            uint8_t a = rgba[idx + 3];
+
+            bool is_black = (a > 128) && ((r * 299 + g * 587 + b * 114) / 1000 < 128);
+            if (is_black) {
+                int byte_idx = x / 8;
+                int bit_idx = 7 - (x % 8);
+                if (byte_idx < bytes_per_line) {
+                    line_buf[byte_idx] |= (1 << bit_idx);
+                }
+            }
+        }
+
+        stream.push_back(0x67);
+        stream.push_back(0x00);
+        stream.push_back((uint8_t)bytes_per_line);
+        stream.insert(stream.end(), line_buf.begin(), line_buf.end());
+    }
+
+    // 8. Form Feed / Imprimir y avanzar: 0x0C
+    stream.push_back(0x0C);
+
+    DWORD bytesWritten = 0;
+    BOOL bSuccess = WritePrinter(hPrinter, stream.data(), (DWORD)stream.size(), &bytesWritten);
+
+    EndPagePrinter(hPrinter);
+    EndDocPrinter(hPrinter);
+    ClosePrinter(hPrinter);
+
+    if (!bSuccess || bytesWritten == 0) {
+        out_msg = "Error al enviar bytes al spooler RAW de Windows";
+        return false;
+    }
+
+    out_msg = "Trabajo RAW Brother enviado correctamente (" + std::to_string(bytesWritten) + " bytes)";
     return true;
 }
 #endif
@@ -299,6 +447,9 @@ bool PrintManager::print_rgba_buffer(const std::vector<uint8_t>& rgba, int width
     std::string printer = settings.printer_name.empty() ? default_printer_ : settings.printer_name;
 
 #ifdef _WIN32
+    if (settings.print_method == 1) {
+        return PrintRawBrotherRaster(printer, rgba, width, height, settings, out_message);
+    }
     return PrintGdiBuffer(printer, rgba, width, height, settings, out_message);
 #else
     fs::path temp_path = fs::temp_directory_path() / "code128_print_job.png";
