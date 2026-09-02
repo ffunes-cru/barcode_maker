@@ -143,10 +143,23 @@ bool PrintManager::print_file(const std::string& file_path, const PrintJobSettin
     // Target Brother QL continuous 102mm roll (DK-22246) and disable aspect scaling
     cmd << " -o PageSize=102X1";
     cmd << " -o print-scaling=none";
+    cmd << " -o BrTrimtape=OFF"; // Never cut off the leading edge of the first label!
+
+    if (settings.cut_at_end) {
+        cmd << " -o BrCutAtEnd=ON";
+    } else {
+        cmd << " -o BrCutAtEnd=OFF";
+    }
+
+    if (settings.cut_each_label) {
+        cmd << " -o BrCutLabel=1";
+    } else {
+        cmd << " -o BrCutLabel=0";
+    }
+
     if (settings.fit_to_page) {
         cmd << " -o fit-to-page";
     }
-    cmd << " -o BrCutAtEnd=ON";
     cmd << " \"" << file_path << "\" 2>&1";
 
     std::string cmd_str = cmd.str();

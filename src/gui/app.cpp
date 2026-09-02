@@ -686,6 +686,7 @@ void App::render_left_panel() {
         if (ImGui::Checkbox("Rotar 90 deg", &strip_settings_.rotate_90)) {
             update_strip_texture();
         }
+        ImGui::Checkbox("Corte automatico al finalizar la tira (Brother QL)", &print_job_settings_.cut_at_end);
     }
 
     ImGui::Spacing();
@@ -1036,6 +1037,14 @@ void App::render_print_modal() {
             ImGui::Spacing();
             ImGui::SameLine();
             ImGui::TextDisabled("(Escala 1:1 nativa - Sin encogimiento)");
+        }
+
+        ImGui::Spacing();
+        ImGui::Text("Control de Cuchilla / Corte (Brother QL):");
+        ImGui::Checkbox("Activar corte automatico al finalizar (Auto-Cut ON)", &print_job_settings_.cut_at_end);
+        if (print_target_mode == 0) {
+            ImGui::SameLine();
+            ImGui::Checkbox("Cortar cada etiqueta", &print_job_settings_.cut_each_label);
         }
 
         ImGui::Spacing();
