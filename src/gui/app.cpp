@@ -44,6 +44,7 @@ App::App() {
 }
 
 App::~App() {
+    clear_batch_preview_cache();
     if (single_texture_id_ != 0) glDeleteTextures(1, &single_texture_id_);
     if (strip_texture_id_ != 0) glDeleteTextures(1, &strip_texture_id_);
 }
@@ -146,6 +147,49 @@ void App::update_strip_texture() {
     strip_tex_h_ = strip.height;
 }
 
+void App::clear_batch_preview_cache() {
+    for (auto& item : batch_preview_cache_) {
+        if (item.texture_id != 0) {
+            glDeleteTextures(1, &item.texture_id);
+            item.texture_id = 0;
+        }
+    }
+    batch_preview_cache_.clear();
+}
+
+void App::update_batch_preview_cache() {
+    clear_batch_preview_cache();
+    if (batch_items_.empty()) return;
+
+    int max_items = (batch_array_len_limit_ > 0) ? std::min((int)batch_items_.size(), batch_array_len_limit_)
+                                                 : (int)batch_items_.size();
+    max_items = std::min(max_items, 25); // Cache up to 25 items for smooth GPU roll preview
+
+    for (int i = 0; i < max_items; i++) {
+        BarcodeParams p = params_;
+        p.input = batch_items_[i];
+        BarcodeImage img = engine_.generate(p);
+        if (!img.valid || img.rgba.empty()) continue;
+
+        BatchPreviewItem item;
+        item.code = batch_items_[i];
+        item.width = img.width;
+        item.height = img.height;
+
+        glGenTextures(1, &item.texture_id);
+        glBindTexture(GL_TEXTURE_2D, item.texture_id);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img.width, img.height, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, img.rgba.data());
+
+        batch_preview_cache_.push_back(item);
+    }
+}
+
 void App::update_barcode_data() {
     std::string err;
     if (!engine_.validate_text(params_.input, err)) {
@@ -163,6 +207,9 @@ void App::update_barcode_data() {
         calculated_height_px_ = img.height;
         update_single_texture(img);
         update_strip_texture();
+        if (input_mode_ == InputMode::BatchFile && !batch_items_.empty()) {
+            update_batch_preview_cache();
+        }
     } else {
         is_code_valid_ = false;
         code_error_msg_ = img.error_message;
@@ -199,13 +246,16 @@ void App::load_batch_file(const std::string& filepath) {
     if (!batch_items_.empty()) {
         selected_batch_index_ = 0;
         strncpy(batch_file_path_, filepath.c_str(), sizeof(batch_file_path_) - 1);
-        status_notification_ = "Cargados " + std::to_string(batch_items_.size()) + " codigos desde " + filepath;
+        input_mode_ = InputMode::BatchFile;
+        strip_settings_.use_batch_list = true;
+        params_.input = batch_items_[0];
+        strncpy(manual_input_buf_, batch_items_[0].c_str(), sizeof(manual_input_buf_) - 1);
+        status_notification_ = "Lote cargado: " + std::to_string(batch_items_.size()) + " codigos desde " + filepath;
         status_notification_timer_ = 4.0f;
-        if (input_mode_ == InputMode::BatchFile) {
-            params_.input = batch_items_[0];
-            strncpy(manual_input_buf_, batch_items_[0].c_str(), sizeof(manual_input_buf_) - 1);
-            update_barcode_data();
-        }
+        update_barcode_data();
+    } else {
+        status_notification_ = "El archivo no contiene codigos Code128 validos: " + filepath;
+        status_notification_timer_ = 5.0f;
     }
 }
 
@@ -425,6 +475,25 @@ void App::render_ui() {
 void App::render_left_panel() {
     // --- 1. Data Input ---
     if (ImGui::CollapsingHeader("1. Datos a Codificar", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::Text("Origen de Datos:");
+        if (ImGui::RadioButton("Manual (Texto Unico)##Sec1", input_mode_ == InputMode::Manual)) {
+            input_mode_ = InputMode::Manual;
+            params_.input = manual_input_buf_;
+            update_barcode_data();
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Archivo de Lote (.txt)##Sec1", input_mode_ == InputMode::BatchFile)) {
+            input_mode_ = InputMode::BatchFile;
+            strip_settings_.use_batch_list = true;
+            if (!batch_items_.empty()) {
+                params_.input = batch_items_[selected_batch_index_];
+                strncpy(manual_input_buf_, params_.input.c_str(), sizeof(manual_input_buf_) - 1);
+            }
+            update_barcode_data();
+        }
+
+        ImGui::Spacing();
+
         if (input_mode_ == InputMode::Manual) {
             ImGui::Text("Texto a codificar (-s):");
             if (ImGui::InputText("##ManualInput", manual_input_buf_, sizeof(manual_input_buf_))) {
@@ -433,20 +502,43 @@ void App::render_left_panel() {
             }
         } else {
             ImGui::Text("Ruta del archivo de lote (-c):");
-            ImGui::InputText("##BatchFilePath", batch_file_path_, sizeof(batch_file_path_));
-            if (ImGui::Button("[ Cargar Archivo ]")) {
+            bool enter_pressed = ImGui::InputText("##BatchFilePath", batch_file_path_, sizeof(batch_file_path_), ImGuiInputTextFlags_EnterReturnsTrue);
+            if (ImGui::Button("[ Cargar Archivo ]") || enter_pressed) {
                 load_batch_file(batch_file_path_);
             }
-            ImGui::SameLine();
-            ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "(%zu codigos detectados)", batch_items_.size());
 
             if (!batch_items_.empty()) {
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[OK] %zu codigos", batch_items_.size());
+
+                ImGui::Spacing();
+                ImGui::Text("Navegador de Codigos:");
+                if (ImGui::Button("<##PrevBatch") && selected_batch_index_ > 0) {
+                    selected_batch_index_--;
+                    params_.input = batch_items_[selected_batch_index_];
+                    strncpy(manual_input_buf_, params_.input.c_str(), sizeof(manual_input_buf_) - 1);
+                    update_barcode_data();
+                }
+                ImGui::SameLine();
+                ImGui::Text("Item %d de %zu: %s", selected_batch_index_ + 1, batch_items_.size(), params_.input.c_str());
+                ImGui::SameLine();
+                if (ImGui::Button(">##NextBatch") && selected_batch_index_ + 1 < (int)batch_items_.size()) {
+                    selected_batch_index_++;
+                    params_.input = batch_items_[selected_batch_index_];
+                    strncpy(manual_input_buf_, params_.input.c_str(), sizeof(manual_input_buf_) - 1);
+                    update_barcode_data();
+                }
+
                 ImGui::Text("Procesar hasta (-A elementos):");
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(100);
                 if (ImGui::InputInt("##LimitA", &batch_array_len_limit_)) {
                     if (batch_array_len_limit_ < 0) batch_array_len_limit_ = 0;
+                    update_barcode_data();
                 }
+            } else {
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.2f, 1.0f), "(Ningun lote cargado)");
             }
         }
     }
@@ -783,25 +875,33 @@ void App::render_strip_preview_tab() {
     if (raw_w <= 0.0f) raw_w = 100.0f;
     if (raw_h <= 0.0f) raw_h = 50.0f;
 
-    // FIT-TO-PAGE CALCULATION (What the physical printer does):
-    // When printed with -o fit-to-page, CUPS stretches the image width to fill print_w_mm.
-    // The height scales proportionally.
+    // Target printable width in dots
     float target_print_dots = (print_w_mm / 25.4f) * 300.0f;
-    float fit_scale = target_print_dots / raw_w;
-    float label_h_dots = raw_h * fit_scale;
-    float label_h_mm = (label_h_dots / 300.0f) * 25.4f;
+    float default_fit_scale = target_print_dots / raw_w;
+    float default_label_h_dots = raw_h * default_fit_scale;
+    float default_label_h_mm = (default_label_h_dots / 300.0f) * 25.4f;
+
+    bool is_batch_active = (input_mode_ == InputMode::BatchFile && !batch_items_.empty());
 
     // Number of simulated labels on the roll:
     static int sim_copies = 3;
-    int num_labels = (input_mode_ == InputMode::Manual) ? sim_copies : std::min((int)batch_items_.size(), 15);
-    if (num_labels < 1) num_labels = 1;
+    int num_labels = 1;
+    if (is_batch_active) {
+        if (batch_preview_cache_.empty()) {
+            update_batch_preview_cache();
+        }
+        num_labels = (int)batch_preview_cache_.size();
+        if (num_labels < 1) num_labels = 1;
+    } else {
+        num_labels = sim_copies;
+    }
 
     // Mechanical gap between prints (~0.5 cm = 5.0 mm):
     float cut_gap_mm = 5.0f;
     float lead_mm = 3.0f;
     float trail_mm = 3.0f;
 
-    float total_roll_mm = lead_mm + num_labels * label_h_mm + (num_labels - 1) * cut_gap_mm + trail_mm;
+    float total_roll_mm = lead_mm + num_labels * default_label_h_mm + (num_labels - 1) * cut_gap_mm + trail_mm;
     float total_roll_cm = total_roll_mm / 10.0f;
 
     // Metric HUD Card at Top:
@@ -811,14 +911,24 @@ void App::render_strip_preview_tab() {
         ImGui::Text("Ancho Cinta: %.1f mm", tape_w_mm);
         ImGui::TextDisabled("Imprimible: %.1f mm", print_w_mm);
         ImGui::NextColumn();
-        ImGui::Text("Avance por Etiqueta: %.1f mm", label_h_mm);
-        ImGui::TextDisabled("Equivale a: %.1f cm", label_h_mm / 10.0f);
+        if (is_batch_active) {
+            ImGui::Text("Modo Lote Activo");
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "%zu codigos cargados", batch_items_.size());
+        } else {
+            ImGui::Text("Avance por Etiqueta: %.1f mm", default_label_h_mm);
+            ImGui::TextDisabled("Equivale a: %.1f cm", default_label_h_mm / 10.0f);
+        }
         ImGui::NextColumn();
-        ImGui::Text("Largo Total (%d copias): %.1f cm", num_labels, total_roll_cm);
+        ImGui::Text("Largo Total (%d etiquetas): %.1f cm", num_labels, total_roll_cm);
         ImGui::TextDisabled("Dist. entre cortes: %.1f mm (0.5 cm)", cut_gap_mm);
         ImGui::NextColumn();
-        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[OK] Emulacion Fit-to-Page");
-        ImGui::TextDisabled("Escala: %.2fx en cinta", fit_scale);
+        if (is_batch_active) {
+            ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "Item #%d: %s", selected_batch_index_ + 1, params_.input.c_str());
+            ImGui::TextDisabled("Mostrando %d en rollo", num_labels);
+        } else {
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[OK] Emulacion Fit-to-Page");
+            ImGui::TextDisabled("Escala: %.2fx en cinta", default_fit_scale);
+        }
         ImGui::Columns(1);
     }
     ImGui::EndChild();
@@ -826,7 +936,15 @@ void App::render_strip_preview_tab() {
     ImGui::Spacing();
 
     // Controls line:
-    if (input_mode_ == InputMode::Manual) {
+    if (is_batch_active) {
+        ImGui::TextColored(ImVec4(0.38f, 0.80f, 1.0f, 1.0f), "Modo Lote Activo: %zu codigos", batch_items_.size());
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Ver Lista de Lote")) {
+            target_tab_index_ = 2;
+            request_tab_switch_ = true;
+        }
+        ImGui::SameLine();
+    } else {
         ImGui::Text("Simular Copias:");
         ImGui::SameLine();
         ImGui::SetNextItemWidth(120);
@@ -858,12 +976,23 @@ void App::render_strip_preview_tab() {
         float print_w_px = (print_w_mm / 25.4f) * 300.0f * scale;
         float margin_side_px = (tape_w_px - print_w_px) * 0.5f;
 
-        float label_h_px = label_h_dots * scale;
         float gap_px = (cut_gap_mm / 25.4f) * 300.0f * scale;
         float lead_px = (lead_mm / 25.4f) * 300.0f * scale;
         float trail_px = (trail_mm / 25.4f) * 300.0f * scale;
 
-        float total_tape_h_px = lead_px + num_labels * label_h_px + (num_labels - 1) * gap_px + trail_px;
+        // Calculate total tape height
+        float total_labels_h_px = 0.0f;
+        for (int i = 0; i < num_labels; i++) {
+            float item_w = raw_w;
+            float item_h = raw_h;
+            if (is_batch_active && i < (int)batch_preview_cache_.size()) {
+                item_w = (float)batch_preview_cache_[i].width;
+                item_h = (float)batch_preview_cache_[i].height;
+            }
+            float item_fit = target_print_dots / (item_w > 0.0f ? item_w : 100.0f);
+            total_labels_h_px += (item_h * item_fit * scale);
+        }
+        float total_tape_h_px = lead_px + total_labels_h_px + (num_labels - 1) * gap_px + trail_px;
 
         float offset_x = std::max(20.0f, (avail.x - tape_w_px - 30.0f) * 0.5f);
         float offset_y = 20.0f;
@@ -886,19 +1015,46 @@ void App::render_strip_preview_tab() {
         // 3. Draw Labels along the Tape
         float cur_y = tape_p0.y + lead_px;
         for (int i = 0; i < num_labels; i++) {
-            ImVec2 bc_p0 = ImVec2(tape_p0.x + margin_side_px, cur_y);
-            ImVec2 bc_p1 = ImVec2(tape_p0.x + margin_side_px + print_w_px, cur_y + label_h_px);
+            GLuint cur_tex = single_texture_id_;
+            float item_w = raw_w;
+            float item_h = raw_h;
+            std::string item_code = params_.input;
 
-            if (single_texture_id_ != 0) {
-                dl->AddImage((ImTextureID)(intptr_t)single_texture_id_, bc_p0, bc_p1);
+            if (is_batch_active && i < (int)batch_preview_cache_.size()) {
+                cur_tex = batch_preview_cache_[i].texture_id;
+                item_w = (float)batch_preview_cache_[i].width;
+                item_h = (float)batch_preview_cache_[i].height;
+                item_code = batch_preview_cache_[i].code;
             }
 
-            // Draw Subtle bounding frame around label
-            dl->AddRect(bc_p0, bc_p1, IM_COL32(210, 210, 220, 180), 0.0f, 0, 1.0f);
+            float item_fit = target_print_dots / (item_w > 0.0f ? item_w : 100.0f);
+            float item_h_px = item_h * item_fit * scale;
+
+            ImVec2 bc_p0 = ImVec2(tape_p0.x + margin_side_px, cur_y);
+            ImVec2 bc_p1 = ImVec2(tape_p0.x + margin_side_px + print_w_px, cur_y + item_h_px);
+
+            if (cur_tex != 0) {
+                dl->AddImage((ImTextureID)(intptr_t)cur_tex, bc_p0, bc_p1);
+            }
+
+            // Highlight currently selected item in batch
+            if (is_batch_active && i == selected_batch_index_) {
+                dl->AddRect(ImVec2(bc_p0.x - 2.0f, bc_p0.y - 2.0f),
+                            ImVec2(bc_p1.x + 2.0f, bc_p1.y + 2.0f),
+                            IM_COL32(0, 150, 255, 255), 2.0f, 0, 2.5f);
+                dl->AddText(ImVec2(tape_p0.x - 70.0f, cur_y + 4.0f),
+                            IM_COL32(0, 150, 255, 255), "[Activo]");
+            }
+
+            // Annotation on right margin of the tape
+            std::string tag = is_batch_active ? ("#" + std::to_string(i + 1) + ": " + item_code)
+                                              : ("Copia " + std::to_string(i + 1));
+            dl->AddText(ImVec2(tape_p1.x + 8.0f, cur_y + 4.0f),
+                        IM_COL32(160, 160, 175, 255), tag.c_str());
 
             // Draw Cutter Line between labels
             if (i < num_labels - 1) {
-                float cut_line_y = cur_y + label_h_px + (gap_px * 0.5f);
+                float cut_line_y = cur_y + item_h_px + (gap_px * 0.5f);
                 for (float x = tape_p0.x; x < tape_p0.x + tape_w_px; x += 12.0f) {
                     dl->AddLine(ImVec2(x, cut_line_y),
                                 ImVec2(std::min(x + 7.0f, tape_p0.x + tape_w_px), cut_line_y),
@@ -908,7 +1064,7 @@ void App::render_strip_preview_tab() {
                             IM_COL32(220, 60, 60, 255), "Cuchilla QL");
             }
 
-            cur_y += label_h_px + gap_px;
+            cur_y += item_h_px + gap_px;
         }
 
         // 4. Final Cutter Line at the end of the roll
@@ -921,7 +1077,7 @@ void App::render_strip_preview_tab() {
         dl->AddText(ImVec2(tape_p1.x + 8.0f, final_cut_y - 7.0f),
                     IM_COL32(40, 160, 60, 255), "Corte Final");
 
-        ImGui::Dummy(ImVec2(offset_x * 2 + tape_w_px + 100.0f, offset_y * 2 + total_tape_h_px + 30.0f));
+        ImGui::Dummy(ImVec2(offset_x * 2 + tape_w_px + 140.0f, offset_y * 2 + total_tape_h_px + 30.0f));
     }
     ImGui::EndChild();
 }

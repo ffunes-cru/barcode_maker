@@ -118,6 +118,16 @@ private:
     int strip_tex_w_ = 0;
     int strip_tex_h_ = 0;
 
+    struct BatchPreviewItem {
+        std::string code;
+        unsigned int texture_id = 0;
+        int width = 0;
+        int height = 0;
+    };
+    std::vector<BatchPreviewItem> batch_preview_cache_;
+
     void update_single_texture(const BarcodeImage& img);
     void update_strip_texture();
+    void update_batch_preview_cache();
+    void clear_batch_preview_cache();
 };
