@@ -474,7 +474,7 @@ void App::render_left_panel() {
 
         float qz_mm = (params_.quiet_zone_x * params_.module_width) / (300.0f / 25.4f);
         ImGui::Text("Quiet Zone (Margen X): %.1f mod (%.1f mm)", params_.quiet_zone_x, qz_mm);
-        if (ImGui::SliderFloat("##QuietZone", &params_.quiet_zone_x, 2.0f, 30.0f, "%.1f mod")) {
+        if (ImGui::SliderFloat("##QuietZone", &params_.quiet_zone_x, 0.0f, 30.0f, "%.1f mod")) {
             update_barcode_data();
         }
         if (params_.quiet_zone_x < 10.0f) {
@@ -532,11 +532,29 @@ void App::render_left_panel() {
         }
 
         ImGui::Columns(2, "preset_quick_actions", false);
-        if (ImGui::Button("+ Guardar Nuevo", ImVec2(-1, 0))) {
-            show_preset_abm_modal_ = true;
-            snprintf(abm_preset_name_buf_, sizeof(abm_preset_name_buf_), "Preset %s (%.1fmm)",
-                     params_.input.c_str(), strip_settings_.roll_width_mm);
-            snprintf(abm_preset_desc_buf_, sizeof(abm_preset_desc_buf_), "Creado por el usuario");
+        if (ImGui::Button("+ Guardar Como Nuevo", ImVec2(-1, 0))) {
+            Preset new_p;
+            new_p.name = "Preset " + params_.input + " (" + std::to_string((int)std::round(strip_settings_.roll_width_mm)) + "mm)";
+            new_p.description = "Configuracion guardada por el usuario";
+            new_p.module_width = params_.module_width;
+            new_p.bar_height = params_.bar_height;
+            new_p.text_size = params_.text_size;
+            new_p.quiet_zone_x = params_.quiet_zone_x;
+            new_p.margin_y = params_.margin_y;
+            new_p.text_gap_y = params_.text_gap_y;
+            new_p.roll_width_mm = strip_settings_.roll_width_mm;
+            new_p.printable_width_mm = strip_settings_.printable_width_mm;
+            new_p.label_gap_mm = strip_settings_.label_gap_mm;
+            new_p.repeat_count = strip_settings_.repeat_count;
+            new_p.rotate_90 = strip_settings_.rotate_90;
+            new_p.show_cut_lines = strip_settings_.show_cut_lines;
+            new_p.cut_line_style = strip_settings_.cut_line_style;
+            std::string err;
+            if (preset_manager_.add_preset(new_p, err)) {
+                selected_preset_idx_ = (int)preset_manager_.get_presets().size() - 1;
+                status_notification_ = "Preset '" + new_p.name + "' guardado con exito";
+                status_notification_timer_ = 4.0f;
+            }
         }
         ImGui::NextColumn();
         if (ImGui::Button("Gestionar ABM...", ImVec2(-1, 0))) {
@@ -552,16 +570,32 @@ void App::render_left_panel() {
 
         ImGui::Spacing();
 
-        if (ImGui::Button("[ Auto-Ajustar al Ancho de Rollo ]", ImVec2(-1, 0))) {
+        if (ImGui::Button("[ Auto-Ajustar a 99 mm (Margen Estandar) ]", ImVec2(-1, 0))) {
             float dots_per_mm = strip_settings_.dpi / 25.4f;
             float printable_w_px = strip_settings_.printable_width_mm * dots_per_mm;
             int code_len = (int)current_encoded_bits_.length();
             if (code_len > 0) {
                 float total_mods = (float)code_len + 2.0f + (params_.quiet_zone_x * 2.0f);
                 if (!strip_settings_.rotate_90) {
-                    params_.module_width = std::clamp(printable_w_px / total_mods, 1.0f, 16.0f);
+                    params_.module_width = std::clamp(printable_w_px / total_mods, 1.0f, 25.0f);
                 } else {
-                    params_.bar_height = std::clamp(printable_w_px - (params_.margin_y * 2.0f + params_.text_size + params_.text_gap_y), 20.0f, 300.0f);
+                    params_.bar_height = std::clamp(printable_w_px - (params_.margin_y * 2.0f + params_.text_size + params_.text_gap_y), 20.0f, 350.0f);
+                }
+                update_barcode_data();
+            }
+        }
+
+        if (ImGui::Button("[ Llenar Cinta al 100% (Sin Margenes Laterales) ]", ImVec2(-1, 0))) {
+            float dots_per_mm = strip_settings_.dpi / 25.4f;
+            float roll_w_px = strip_settings_.roll_width_mm * dots_per_mm;
+            int code_len = (int)current_encoded_bits_.length();
+            if (code_len > 0) {
+                params_.quiet_zone_x = 0.0f; // 0 modules quiet zone removes all lateral white margins
+                float total_mods = (float)code_len + 2.0f;
+                if (!strip_settings_.rotate_90) {
+                    params_.module_width = roll_w_px / total_mods;
+                } else {
+                    params_.bar_height = roll_w_px;
                 }
                 update_barcode_data();
             }
@@ -1151,9 +1185,8 @@ void App::render_preset_abm_modal() {
 
         ImGui::SameLine();
 
-        // --- Right: Interactive Preset Editor (No unwanted scrollbars) ---
-        ImGui::BeginChild("ABMPresetDetailCol", ImVec2(right_col_w, ImGui::GetContentRegionAvail().y - 50.0f), true,
-                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        // --- Right: Interactive Preset Editor (Scrollable with prominent Save button) ---
+        ImGui::BeginChild("ABMPresetDetailCol", ImVec2(right_col_w, ImGui::GetContentRegionAvail().y - 50.0f), true, 0);
         {
             const Preset* current_p = preset_manager_.get_preset(abm_selected_preset_idx_);
             if (current_p) {
@@ -1172,6 +1205,51 @@ void App::render_preset_abm_modal() {
                     ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.3f, 1.0f), "[Preset Personalizado]");
                 }
                 ImGui::Separator();
+                ImGui::Spacing();
+
+                // Prominent Action Buttons at the Top
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.12f, 0.55f, 0.28f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.16f, 0.68f, 0.35f, 1.0f));
+                if (ImGui::Button("[ Guardar Cambios en este Preset ]", ImVec2(240, 30))) {
+                    abm_edit_preset_.name = abm_preset_name_buf_;
+                    abm_edit_preset_.description = abm_preset_desc_buf_;
+                    std::string err;
+                    if (preset_manager_.update_preset(abm_selected_preset_idx_, abm_edit_preset_, err)) {
+                        abm_status_msg_ = "Preset '" + abm_edit_preset_.name + "' guardado con exito";
+                        abm_status_timer_ = 3.0f;
+                    } else {
+                        abm_status_msg_ = "Error: " + err;
+                        abm_status_timer_ = 4.0f;
+                    }
+                }
+                ImGui::PopStyleColor(2);
+
+                ImGui::SameLine();
+                if (ImGui::Button("[ Copiar del Lienzo ]", ImVec2(160, 30))) {
+                    abm_edit_preset_.module_width = params_.module_width;
+                    abm_edit_preset_.bar_height = params_.bar_height;
+                    abm_edit_preset_.text_size = params_.text_size;
+                    abm_edit_preset_.quiet_zone_x = params_.quiet_zone_x;
+                    abm_edit_preset_.margin_y = params_.margin_y;
+                    abm_edit_preset_.text_gap_y = params_.text_gap_y;
+                    abm_edit_preset_.roll_width_mm = strip_settings_.roll_width_mm;
+                    abm_edit_preset_.printable_width_mm = strip_settings_.printable_width_mm;
+                    abm_edit_preset_.label_gap_mm = strip_settings_.label_gap_mm;
+                    abm_edit_preset_.repeat_count = strip_settings_.repeat_count;
+                    abm_edit_preset_.rotate_90 = strip_settings_.rotate_90;
+                    abm_edit_preset_.show_cut_lines = strip_settings_.show_cut_lines;
+                    abm_status_msg_ = "Parametros del lienzo copiados al editor";
+                    abm_status_timer_ = 3.0f;
+                }
+
+                ImGui::SameLine();
+                if (ImGui::Button("[ Aplicar al Lienzo ]", ImVec2(160, 30))) {
+                    apply_preset(abm_edit_preset_);
+                    selected_preset_idx_ = abm_selected_preset_idx_;
+                    abm_status_msg_ = "Preset '" + abm_edit_preset_.name + "' aplicado al lienzo";
+                    abm_status_timer_ = 3.0f;
+                }
+
                 ImGui::Spacing();
 
                 ImGui::Text("Nombre del Preset:");
@@ -1238,7 +1316,7 @@ void App::render_preset_abm_modal() {
 
                 ImGui::Text("Quiet Zone (Margen X):");
                 ImGui::SetNextItemWidth(130);
-                ImGui::SliderFloat("##ABMQZ", &abm_edit_preset_.quiet_zone_x, 2.0f, 30.0f, "%.1f mod");
+                ImGui::SliderFloat("##ABMQZ", &abm_edit_preset_.quiet_zone_x, 0.0f, 30.0f, "%.1f mod");
 
                 ImGui::Text("Espacio Barras-Texto:");
                 ImGui::SetNextItemWidth(130);
