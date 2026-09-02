@@ -108,4 +108,16 @@ private:
     bool is_performing_update_ = false;
     float update_progress_ = 0.0f;
     std::string update_status_text_;
+
+    // Direct GPU Texture Preview (WYSIWYG 1:1)
+    unsigned int single_texture_id_ = 0;
+    int single_tex_w_ = 0;
+    int single_tex_h_ = 0;
+
+    unsigned int strip_texture_id_ = 0;
+    int strip_tex_w_ = 0;
+    int strip_tex_h_ = 0;
+
+    void update_single_texture(const BarcodeImage& img);
+    void update_strip_texture();
 };

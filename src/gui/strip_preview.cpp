@@ -96,6 +96,7 @@ StripImage StripGenerator::GenerateStrip(
     for (size_t i = 0; i < label_texts.size(); i++) {
         BarcodeParams p = base_params;
         p.input = label_texts[i];
+        p.show_cut_line = false; // StripGenerator manages cut lines between labels
 
         BarcodeImage bimg = engine.generate(p);
         if (!bimg.valid) continue;
@@ -182,18 +183,22 @@ StripImage StripGenerator::GenerateStrip(
         // Draw horizontal cut separator line between labels (Crisp Black Thermal Print)
         if (settings.show_cut_lines && l < placed_labels.size() - 1) {
             int cut_y = pl.placed_y + pl.render_h + (gap_px / 2);
+            int printable_w_px = (int)std::round(print_w_mm * dots_per_mm);
+            int cut_x0 = std::max(0, (tape_width_px - printable_w_px) / 2);
+            int cut_x1 = std::min(strip.width, cut_x0 + printable_w_px);
+
             if (cut_y >= 0 && cut_y < strip.height - 2) {
-                for (int cx = 0; cx < strip.width; cx++) {
+                for (int cx = cut_x0; cx < cut_x1; cx++) {
                     bool draw_black = false;
                     if (settings.cut_line_style == 0) {
                         // Dashed black line: 12px dash, 8px gap
-                        draw_black = ((cx % 20) < 12);
+                        draw_black = (((cx - cut_x0) % 20) < 12);
                     } else if (settings.cut_line_style == 1) {
                         // Continuous solid black line
                         draw_black = true;
                     } else if (settings.cut_line_style == 2) {
                         // Edge tick marks (30px on each border)
-                        draw_black = (cx < 30 || cx >= strip.width - 30);
+                        draw_black = (cx < cut_x0 + 30 || cx >= cut_x1 - 30);
                     }
                     if (draw_black) {
                         set_pixel(cx, cut_y, 0, 0, 0);
