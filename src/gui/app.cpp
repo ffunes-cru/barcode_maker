@@ -119,13 +119,13 @@ void App::update_single_texture(const BarcodeImage& img) {
 }
 
 void App::update_strip_texture() {
+    // Only used for minimal fallback; capped at 3 items to avoid large memory allocations
     std::vector<std::string> labels_to_render;
-    if (input_mode_ == InputMode::BatchFile && strip_settings_.use_batch_list && !batch_items_.empty()) {
-        int count = (batch_array_len_limit_ > 0) ? std::min((int)batch_items_.size(), batch_array_len_limit_)
-                                                 : (int)batch_items_.size();
+    if (input_mode_ == InputMode::BatchFile && !batch_items_.empty()) {
+        int count = std::min((int)batch_items_.size(), 3);
         labels_to_render.assign(batch_items_.begin(), batch_items_.begin() + count);
     } else {
-        labels_to_render.assign(std::clamp(strip_settings_.repeat_count, 1, 30), params_.input);
+        labels_to_render.assign(std::clamp(strip_settings_.repeat_count, 1, 3), params_.input);
     }
 
     StripImage strip = StripGenerator::GenerateStrip(engine_, params_, labels_to_render, strip_settings_);
@@ -161,18 +161,21 @@ void App::update_batch_preview_cache() {
     clear_batch_preview_cache();
     if (batch_items_.empty()) return;
 
-    int max_items = (batch_array_len_limit_ > 0) ? std::min((int)batch_items_.size(), batch_array_len_limit_)
-                                                 : (int)batch_items_.size();
-    max_items = std::min(max_items, 25); // Cache up to 25 items for smooth GPU roll preview
+    // Show a lightweight sample of at most 3-4 labels starting at the active item
+    int total = (int)batch_items_.size();
+    int max_items = std::min(4, total);
+    int start_idx = selected_batch_index_;
+    if (start_idx < 0 || start_idx >= total) start_idx = 0;
 
     for (int i = 0; i < max_items; i++) {
+        int idx = (start_idx + i) % total;
         BarcodeParams p = params_;
-        p.input = batch_items_[i];
+        p.input = batch_items_[idx];
         BarcodeImage img = engine_.generate(p);
         if (!img.valid || img.rgba.empty()) continue;
 
         BatchPreviewItem item;
-        item.code = batch_items_[i];
+        item.code = batch_items_[idx];
         item.width = img.width;
         item.height = img.height;
 
@@ -206,7 +209,6 @@ void App::update_barcode_data() {
         calculated_width_px_ = img.width;
         calculated_height_px_ = img.height;
         update_single_texture(img);
-        update_strip_texture();
         if (input_mode_ == InputMode::BatchFile && !batch_items_.empty()) {
             update_batch_preview_cache();
         }
