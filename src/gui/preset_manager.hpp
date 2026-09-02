@@ -27,6 +27,7 @@ struct Preset {
     int repeat_count = 12;
     bool rotate_90 = false;
     bool show_cut_lines = true;
+    int cut_line_style = 0;
 };
 
 class PresetManager {

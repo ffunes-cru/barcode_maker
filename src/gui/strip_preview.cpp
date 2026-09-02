@@ -179,23 +179,29 @@ StripImage StripGenerator::GenerateStrip(
             }
         }
 
-        // Draw horizontal cut guideline between labels
+        // Draw horizontal cut separator line between labels (Crisp Black Thermal Print)
         if (settings.show_cut_lines && l < placed_labels.size() - 1) {
             int cut_y = pl.placed_y + pl.render_h + (gap_px / 2);
-            if (cut_y < strip.height - 2) {
+            if (cut_y >= 0 && cut_y < strip.height - 2) {
                 for (int cx = 0; cx < strip.width; cx++) {
-                    if ((cx / 6) % 2 == 0) {
-                        set_pixel(cx, cut_y, 180, 50, 50); // Red dashed cut guideline
+                    bool draw_black = false;
+                    if (settings.cut_line_style == 0) {
+                        // Dashed black line: 12px dash, 8px gap
+                        draw_black = ((cx % 20) < 12);
+                    } else if (settings.cut_line_style == 1) {
+                        // Continuous solid black line
+                        draw_black = true;
+                    } else if (settings.cut_line_style == 2) {
+                        // Edge tick marks (30px on each border)
+                        draw_black = (cx < 30 || cx >= strip.width - 30);
+                    }
+                    if (draw_black) {
+                        set_pixel(cx, cut_y, 0, 0, 0);
+                        set_pixel(cx, cut_y + 1, 0, 0, 0);
                     }
                 }
             }
         }
-    }
-
-    // Tape edge borders
-    for (int y = 0; y < strip.height; y++) {
-        set_pixel(0, y, 200, 200, 200);
-        set_pixel(strip.width - 1, y, 200, 200, 200);
     }
 
     strip.valid = true;

@@ -235,16 +235,25 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
     int barcode_raw_w = (int)std::ceil(total_modules * mod_w);
     int image_width = barcode_raw_w;
 
-    // Pre-measure FreeType text width if text is active
+    // Pre-measure FreeType text metrics if text is active
     int text_width = 0;
+    int max_bearing_y = 0;
+    int max_descender_y = 0;
+
     if (ft_face_ && params.text_size > 0.0f) {
         FT_Face face = (FT_Face)ft_face_;
         int font_size = (int)std::round(params.text_size);
         if (font_size < 6) font_size = 6;
         FT_Set_Pixel_Sizes(face, 0, font_size);
+
         for (char c : params.input) {
             if (FT_Load_Char(face, c, FT_LOAD_DEFAULT) == 0) {
                 text_width += face->glyph->advance.x >> 6;
+                int top = face->glyph->bitmap_top;
+                int rows = face->glyph->bitmap.rows;
+                if (top > max_bearing_y) max_bearing_y = top;
+                int desc = rows - top;
+                if (desc > max_descender_y) max_descender_y = desc;
             }
         }
         // If text is wider than the barcode, expand image_width so text has margin and is never clipped
@@ -255,7 +264,12 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
         }
     }
 
-    int image_height = (int)std::ceil((params.margin_y * 2.0f) + params.bar_height + params.text_gap_y + params.text_size);
+    int text_actual_h = (max_bearing_y + max_descender_y > 0) ? (max_bearing_y + max_descender_y) : (int)std::round(params.text_size);
+    float extra_cut_space = params.show_cut_line ? 4.0f : 0.0f;
+
+    // Exact Symmetrical Height:
+    // Top margin (params.margin_y) + Bar height (params.bar_height) + Text gap (params.text_gap_y) + Text height + Bottom margin (params.margin_y)
+    int image_height = (int)std::ceil(params.margin_y + params.bar_height + params.text_gap_y + (float)text_actual_h + params.margin_y + extra_cut_space);
 
     if (image_width < 10 || image_height < 10) {
         result.error_message = "Dimensiones calculadas inválidas";
@@ -306,23 +320,16 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
         }
     }
 
-    // 5. FreeType Text Rasterization
-    if (ft_face_) {
+    // 5. FreeType Text Rasterization (Pixel-Perfect Alignment)
+    if (ft_face_ && params.text_size > 0.0f) {
         FT_Face face = (FT_Face)ft_face_;
         int font_size = (int)std::round(params.text_size);
         if (font_size < 6) font_size = 6;
         FT_Set_Pixel_Sizes(face, 0, font_size);
 
-        // Measure text width
-        int text_width = 0;
-        for (char c : params.input) {
-            if (FT_Load_Char(face, c, FT_LOAD_RENDER) == 0) {
-                text_width += face->glyph->advance.x >> 6;
-            }
-        }
-
         int pen_x = (image_width - text_width) / 2;
-        int baseline_y = (int)std::round(params.margin_y + params.bar_height + params.text_gap_y + (params.text_size * 0.82f));
+        // The top of the highest glyph is placed EXACTLY at end_y + params.text_gap_y
+        int baseline_y = (int)std::round(end_y + params.text_gap_y) + max_bearing_y;
 
         for (char c : params.input) {
             if (FT_Load_Char(face, c, FT_LOAD_RENDER) == 0) {
@@ -345,6 +352,28 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
                     }
                 }
                 pen_x += face->glyph->advance.x >> 6;
+            }
+        }
+    }
+
+    // 6. Draw optional cut separator line for individual label
+    if (params.show_cut_line) {
+        int cut_y = image_height - 2;
+        for (int cx = 0; cx < image_width; cx++) {
+            bool draw_dot = false;
+            if (params.cut_line_style == 0) {
+                // Dashed black line: 12px dash, 8px gap
+                draw_dot = ((cx % 20) < 12);
+            } else if (params.cut_line_style == 1) {
+                // Continuous solid black line
+                draw_dot = true;
+            } else if (params.cut_line_style == 2) {
+                // Edge tick marks (30px on each border)
+                draw_dot = (cx < 30 || cx >= image_width - 30);
+            }
+            if (draw_dot) {
+                set_pixel(cx, cut_y, 0);
+                set_pixel(cx, cut_y - 1, 0);
             }
         }
     }

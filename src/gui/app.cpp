@@ -67,6 +67,8 @@ void App::apply_preset(const Preset& p) {
     params_.quiet_zone_x = p.quiet_zone_x;
     params_.margin_y = p.margin_y;
     params_.text_gap_y = p.text_gap_y;
+    params_.show_cut_line = p.show_cut_lines;
+    params_.cut_line_style = p.cut_line_style;
 
     strip_settings_.roll_width_mm = p.roll_width_mm;
     strip_settings_.printable_width_mm = p.printable_width_mm;
@@ -74,6 +76,7 @@ void App::apply_preset(const Preset& p) {
     strip_settings_.repeat_count = p.repeat_count;
     strip_settings_.rotate_90 = p.rotate_90;
     strip_settings_.show_cut_lines = p.show_cut_lines;
+    strip_settings_.cut_line_style = p.cut_line_style;
 
     update_barcode_data();
     status_notification_ = "Preset '" + p.name + "' aplicado";
@@ -412,6 +415,19 @@ void App::render_left_panel() {
         if (ImGui::SliderFloat("##TextGapY", &params_.text_gap_y, 0.0f, 30.0f, "%.1f px")) {
             update_barcode_data();
         }
+
+        ImGui::Spacing();
+        if (ImGui::Checkbox("Linea separadora de corte en etiqueta", &params_.show_cut_line)) {
+            update_barcode_data();
+        }
+        if (params_.show_cut_line) {
+            ImGui::SameLine();
+            const char* cut_styles[] = { "Punteada (troquel)", "Solida continua", "Marcas laterales" };
+            ImGui::SetNextItemWidth(170);
+            if (ImGui::Combo("##SingleCutStyle", &params_.cut_line_style, cut_styles, IM_ARRAYSIZE(cut_styles))) {
+                update_barcode_data();
+            }
+        }
     }
 
     ImGui::Spacing();
@@ -503,8 +519,13 @@ void App::render_left_panel() {
         ImGui::Text("Espaciado entre etiquetas (mm):");
         ImGui::SliderFloat("##LabelGap", &strip_settings_.label_gap_mm, 0.0f, 15.0f, "%.1f mm");
 
-        ImGui::Checkbox("Mostrar marcas de corte", &strip_settings_.show_cut_lines);
-        ImGui::SameLine();
+        ImGui::Checkbox("Linea separadora en zona de corte", &strip_settings_.show_cut_lines);
+        if (strip_settings_.show_cut_lines) {
+            ImGui::SameLine();
+            const char* cut_styles[] = { "Punteada (troquel)", "Solida continua", "Marcas laterales" };
+            ImGui::SetNextItemWidth(170);
+            ImGui::Combo("##StripCutStyle", &strip_settings_.cut_line_style, cut_styles, IM_ARRAYSIZE(cut_styles));
+        }
         ImGui::Checkbox("Rotar 90 deg", &strip_settings_.rotate_90);
     }
 
@@ -654,6 +675,29 @@ void App::render_live_preview_tab() {
 
         draw_list->AddText(text_font, target_font_size, ImVec2(text_x, text_y),
                            IM_COL32(0, 0, 0, 255), params_.input.c_str());
+
+        // Cut separator guideline on individual label
+        if (params_.show_cut_line) {
+            float line_y = card_max.y - 2.0f;
+            if (params_.cut_line_style == 0) {
+                // Dashed line
+                for (float cx = card_min.x; cx < card_max.x; cx += 16.0f) {
+                    draw_list->AddLine(ImVec2(cx, line_y), ImVec2(std::min(card_max.x, cx + 10.0f), line_y),
+                                       IM_COL32(40, 40, 40, 255), 1.5f);
+                }
+            } else if (params_.cut_line_style == 1) {
+                // Continuous solid line
+                draw_list->AddLine(ImVec2(card_min.x, line_y), ImVec2(card_max.x, line_y),
+                                   IM_COL32(40, 40, 40, 255), 1.5f);
+            } else if (params_.cut_line_style == 2) {
+                // Edge tick marks
+                float mark_len = 25.0f * scale;
+                draw_list->AddLine(ImVec2(card_min.x, line_y), ImVec2(card_min.x + mark_len, line_y),
+                                   IM_COL32(40, 40, 40, 255), 1.5f);
+                draw_list->AddLine(ImVec2(card_max.x - mark_len, line_y), ImVec2(card_max.x, line_y),
+                                   IM_COL32(40, 40, 40, 255), 1.5f);
+            }
+        }
 
         ImGui::Dummy(ImVec2(offset_x * 2 + barcode_w, offset_y * 2 + barcode_h));
     }
@@ -856,12 +900,26 @@ void App::render_strip_preview_tab() {
                                    IM_COL32(0, 0, 0, 255), labels_to_render[l].c_str());
             }
 
-            // Horizontal cut guideline between labels
+            // Horizontal cut separator guideline between labels
             if (strip_settings_.show_cut_lines && l < labels_to_render.size() - 1) {
                 float cut_y = label_y1 + (gap_px * scale * 0.5f);
-                for (float cx = tape_min.x; cx < tape_max.x; cx += 10.0f) {
-                    draw_list->AddLine(ImVec2(cx, cut_y), ImVec2(std::min(tape_max.x, cx + 5.0f), cut_y),
-                                       IM_COL32(200, 40, 40, 220), 1.5f);
+                if (strip_settings_.cut_line_style == 0) {
+                    // Dashed line
+                    for (float cx = tape_min.x; cx < tape_max.x; cx += 16.0f) {
+                        draw_list->AddLine(ImVec2(cx, cut_y), ImVec2(std::min(tape_max.x, cx + 10.0f), cut_y),
+                                           IM_COL32(40, 40, 40, 255), 1.5f);
+                    }
+                } else if (strip_settings_.cut_line_style == 1) {
+                    // Solid continuous line
+                    draw_list->AddLine(ImVec2(tape_min.x, cut_y), ImVec2(tape_max.x, cut_y),
+                                       IM_COL32(40, 40, 40, 255), 1.5f);
+                } else if (strip_settings_.cut_line_style == 2) {
+                    // Edge tick marks
+                    float mark_w = 25.0f * scale;
+                    draw_list->AddLine(ImVec2(tape_min.x, cut_y), ImVec2(tape_min.x + mark_w, cut_y),
+                                       IM_COL32(40, 40, 40, 255), 1.5f);
+                    draw_list->AddLine(ImVec2(tape_max.x - mark_w, cut_y), ImVec2(tape_max.x, cut_y),
+                                       IM_COL32(40, 40, 40, 255), 1.5f);
                 }
             }
 
@@ -1258,8 +1316,13 @@ void App::render_preset_abm_modal() {
 
                 ImGui::Spacing();
                 ImGui::Checkbox("Rotar 90 deg##ABMRot", &abm_edit_preset_.rotate_90);
-                ImGui::SameLine();
-                ImGui::Checkbox("Mostrar marcas de corte##ABMCut", &abm_edit_preset_.show_cut_lines);
+                ImGui::Checkbox("Linea de corte##ABMCut", &abm_edit_preset_.show_cut_lines);
+                if (abm_edit_preset_.show_cut_lines) {
+                    ImGui::SameLine();
+                    const char* cut_styles[] = { "Punteada (troquel)", "Solida continua", "Marcas laterales" };
+                    ImGui::SetNextItemWidth(150);
+                    ImGui::Combo("##ABMCutStyle", &abm_edit_preset_.cut_line_style, cut_styles, IM_ARRAYSIZE(cut_styles));
+                }
 
                 ImGui::Spacing();
                 ImGui::Separator();

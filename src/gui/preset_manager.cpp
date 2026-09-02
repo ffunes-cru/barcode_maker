@@ -183,9 +183,9 @@ bool PresetManager::save_to_file() {
         f << "    \"roll_width_mm\": " << p.roll_width_mm << ",\n";
         f << "    \"printable_width_mm\": " << p.printable_width_mm << ",\n";
         f << "    \"label_gap_mm\": " << p.label_gap_mm << ",\n";
-        f << "    \"repeat_count\": " << p.repeat_count << ",\n";
         f << "    \"rotate_90\": " << (p.rotate_90 ? "true" : "false") << ",\n";
-        f << "    \"show_cut_lines\": " << (p.show_cut_lines ? "true" : "false") << "\n";
+        f << "    \"show_cut_lines\": " << (p.show_cut_lines ? "true" : "false") << ",\n";
+        f << "    \"cut_line_style\": " << p.cut_line_style << "\n";
         f << "  }" << (i + 1 < presets_.size() ? "," : "") << "\n";
     }
     f << "]\n";
@@ -263,6 +263,7 @@ bool PresetManager::load_from_file() {
         p.repeat_count = (int)extract_float(block, "repeat_count", 12.0f);
         p.rotate_90 = extract_bool(block, "rotate_90", false);
         p.show_cut_lines = extract_bool(block, "show_cut_lines", true);
+        p.cut_line_style = (int)extract_float(block, "cut_line_style", 0.0f);
 
         if (!p.name.empty()) {
             loaded.push_back(p);
