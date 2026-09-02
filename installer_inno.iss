@@ -37,14 +37,17 @@ Name: "downloadlatest"; Description: "Comprobar y descargar la última versión 
 [Files]
 ; 1. Archivos base empaquetados (se instalan de base o como respaldo offline)
 Source: "code128_studio.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "build\Release\code128_studio.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "build\code128_studio.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "install_package\bin\code128_studio.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 Source: "code128_updater.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "build\Release\code128_updater.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "build\code128_updater.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "install_package\bin\code128_updater.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 Source: "*.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "release_win\bin\*.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "install_package\bin\*.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 Source: "font.otf"; DestDir: "{app}"; Flags: ignoreversion

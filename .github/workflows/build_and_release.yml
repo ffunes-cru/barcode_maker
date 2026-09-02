@@ -106,11 +106,21 @@ jobs:
           Get-ChildItem "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" | Copy-Item -Destination release_win\bin\
           Compress-Archive -Path release_win\* -DestinationPath code128-studio-windows-x64.zip
 
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Build Inno Setup Installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer_inno.iss
+          Get-ChildItem build\Code128Studio_Setup*.exe | Copy-Item -Destination .
+
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
           name: code128-studio-windows-x64
-          path: code128-studio-windows-x64.zip
+          path: |
+            code128-studio-windows-x64.zip
+            Code128Studio_Setup*.exe
 
   # ============================================================================
   # 3. GITHUB RELEASES (On Tag push)
@@ -139,6 +149,7 @@ jobs:
           files: |
             code128-studio-linux-x86_64.tar.gz
             code128-studio-windows-x64.zip
+            Code128Studio_Setup*.exe
           draft: false
           prerelease: false
           generate_release_notes: true

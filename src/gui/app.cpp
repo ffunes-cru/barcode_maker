@@ -3,6 +3,10 @@
 #include "../../third_party/imgui/imgui.h"
 #include <GLFW/glfw3.h>
 
+#ifndef GL_CLAMP_TO_EDGE
+#define GL_CLAMP_TO_EDGE 0x812F
+#endif
+
 #include <fstream>
 #include <sstream>
 #include <iostream>

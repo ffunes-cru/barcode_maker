@@ -7,6 +7,9 @@
 #include <filesystem>
 
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include <winspool.h>
 #else
@@ -197,7 +200,7 @@ static bool PrintGdiBuffer(const std::string& printer_name, const std::vector<ui
             pDevMode = (PDEVMODEA)devModeBuf.data();
             if (DocumentPropertiesA(NULL, hPrinter, (LPSTR)printer_name.c_str(), pDevMode, NULL, DM_OUT_BUFFER) == IDOK) {
                 pDevMode->dmFields |= DM_COPIES;
-                pDevMode->dmCopies = (short)std::max(1, settings.copies);
+                pDevMode->dmCopies = (short)(std::max)(1, settings.copies);
                 if (settings.orientation > 0) {
                     pDevMode->dmFields |= DM_ORIENTATION;
                     pDevMode->dmOrientation = (settings.orientation == 4) ? DMORIENT_LANDSCAPE : DMORIENT_PORTRAIT;
