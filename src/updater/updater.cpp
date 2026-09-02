@@ -9,6 +9,9 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <process.h>
+#include <stdio.h>
+#define popen _popen
+#define pclose _pclose
 #else
 #include <unistd.h>
 #include <sys/stat.h>
@@ -121,7 +124,8 @@ bool AppUpdater::PerformHotUpdate(const UpdateInfo& info,
 #ifdef _WIN32
     // Windows: Extract zip with powershell or tar
     std::string extract_cmd = "tar -xf \"" + download_target.string() + "\" -C \"" + temp_dir.string() + "\"";
-    std::system(extract_cmd.c_str());
+    int sys_ret = std::system(extract_cmd.c_str());
+    (void)sys_ret;
 
     // Replace current exe
     char exe_buf[MAX_PATH];
@@ -138,7 +142,8 @@ bool AppUpdater::PerformHotUpdate(const UpdateInfo& info,
 #else
     // Linux: Extract tar.gz and replace current binary
     std::string extract_cmd = "tar -xzf \"" + download_target.string() + "\" -C \"" + temp_dir.string() + "\" 2>&1";
-    std::system(extract_cmd.c_str());
+    int sys_ret = std::system(extract_cmd.c_str());
+    (void)sys_ret;
 
     char exe_buf[1024];
     ssize_t len = readlink("/proc/self/exe", exe_buf, sizeof(exe_buf) - 1);

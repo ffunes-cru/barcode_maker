@@ -9,4 +9,5 @@ codereadtest/
 install_root/
 output_files/
 input*.txt
+!input_rep.txt
 order.txt

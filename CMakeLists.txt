@@ -1,9 +1,17 @@
 cmake_minimum_required(VERSION 3.10)
 
+if (POLICY CMP0072)
+    cmake_policy(SET CMP0072 NEW)
+endif()
+
 project(Code128Studio C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if (MSVC)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+endif()
 
 set(MINGW_DLLS "/usr/x86_64-w64-mingw32/bin/libstdc++-6.dll" "/usr/x86_64-w64-mingw32/bin/libgcc_s_seh-1.dll")
 
@@ -73,8 +81,11 @@ endif()
 target_link_libraries(code128_studio PRIVATE
     ${FREETYPE_LIBRARIES}
     ${OPENGL_LIBRARIES}
-    m
 )
+
+if (UNIX)
+    target_link_libraries(code128_studio PRIVATE m)
+endif()
 
 if (WIN32)
     target_link_libraries(code128_studio PRIVATE winspool ws2_32)

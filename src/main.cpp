@@ -2,9 +2,9 @@
 #include <fstream>
 #include <filesystem>
 #include <cstring>
-#include <getopt.h>
 #include <cstdlib>
 #include <vector>
+#include <string>
 
 #include <GLFW/glfw3.h>
 
@@ -18,85 +18,64 @@
 
 namespace fs = std::filesystem;
 
-// --- CLI Runner ---
+// --- Portable Cross-Platform CLI Runner ---
 static int run_cli(int argc, char* argv[]) {
     BarcodeParams params;
     std::string input_file = "";
     std::string output_dir = "";
     int array_len = 0;
-
-    static struct option long_options[] = {
-        {"input",       required_argument, 0, 's'},
-        {"input-file",  required_argument, 0, 'c'},
-        {"output-dir",  required_argument, 0, 'o'},
-        {"arr-len",     required_argument, 0, 'A'},
-        {"height",      required_argument, 0, 'H'},
-        {"height-txt",  required_argument, 0, 'T'},
-        {"padd-x",      required_argument, 0, 'X'},
-        {"padd-y",      required_argument, 0, 'Y'},
-        {"padd-txt-y",  required_argument, 0, 'y'},
-        {"res-fact",    required_argument, 0, 'R'},
-        {"comp-fact",   required_argument, 0, 'C'},
-        {"version",     no_argument,       0, 'v'},
-        {"help",        no_argument,       0, 'h'},
-        {0, 0, 0, 0}
-    };
-
-    int opt_index = 0;
-    int c;
     bool has_input_s = false;
 
-    while ((c = getopt_long(argc, argv, "c:o:s:A:H:T:X:Y:y:R:C:vh", long_options, &opt_index)) != -1) {
-        switch (c) {
-            case 's':
-                params.input = optarg ? optarg : "";
-                has_input_s = true;
-                break;
-            case 'c':
-                input_file = optarg ? optarg : "";
-                break;
-            case 'o':
-                output_dir = optarg ? optarg : "";
-                break;
-            case 'A':
-                array_len = std::atoi(optarg);
-                break;
-            case 'H':
-                params.bar_height = (float)std::atof(optarg);
-                break;
-            case 'T':
-                params.text_size = (float)std::atof(optarg);
-                break;
-            case 'X':
-                params.quiet_zone_x = (float)std::atof(optarg);
-                break;
-            case 'Y':
-                params.margin_y = (float)std::atof(optarg);
-                break;
-            case 'y':
-                params.text_gap_y = (float)std::atof(optarg);
-                break;
-            case 'R':
-                params.module_width = (float)std::atof(optarg);
-                break;
-            case 'C': {
-                float comp = (float)std::atof(optarg);
-                if (comp > 0.01f) params.module_width /= comp;
-                break;
-            }
-            case 'v':
-                std::cout << "Code128 Studio v" << CODE128_APP_VERSION << "\n";
-                return 0;
-            case 'h':
-                std::cout << "Usage: " << argv[0] << " [OPTIONS]\n";
-                std::cout << "  -s, --input <string>       Generate single barcode\n";
-                std::cout << "  -c, --input-file <path>    Generate from batch file\n";
-                std::cout << "  -o, --output-dir <path>    Output directory\n";
-                std::cout << "  -A, --arr-len <val>        Max batch count\n";
-                std::cout << "  --gui, -g                  Launch graphical user interface\n";
-                return 0;
-            default:
-                return 1;
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+
+        if (arg == "-v" || arg == "--version") {
+            std::cout << "Code128 Studio v" << CODE128_APP_VERSION << "\n";
+            return 0;
+        } else if (arg == "-h" || arg == "--help") {
+            std::cout << "Usage: " << argv[0] << " [OPTIONS]\n";
+            std::cout << "  -s, --input <string>       Generate single barcode\n";
+            std::cout << "  -c, --input-file <path>    Generate from batch file\n";
+            std::cout << "  -o, --output-dir <path>    Output directory\n";
+            std::cout << "  -A, --arr-len <val>        Max batch count\n";
+            std::cout << "  -H, --height <val>         Bar height (px)\n";
+            std::cout << "  -T, --height-txt <val>     Text size (px)\n";
+            std::cout << "  -X, --padd-x <val>         Quiet zone margin (modules)\n";
+            std::cout << "  -Y, --padd-y <val>         Margin Y (px)\n";
+            std::cout << "  -y, --padd-txt-y <val>     Text gap Y (px)\n";
+            std::cout << "  -R, --res-fact <val>       Module width (px)\n";
+            std::cout << "  -C, --comp-fact <val>      Compression factor\n";
+            std::cout << "  --gui, -g                  Launch graphical user interface\n";
+            return 0;
+        } else if ((arg == "-s" || arg == "--input") && i + 1 < argc) {
+            params.input = argv[++i];
+            has_input_s = true;
+        } else if ((arg == "-c" || arg == "--input-file") && i + 1 < argc) {
+            input_file = argv[++i];
+        } else if ((arg == "-o" || arg == "--output-dir") && i + 1 < argc) {
+            output_dir = argv[++i];
+        } else if ((arg == "-A" || arg == "--arr-len") && i + 1 < argc) {
+            array_len = std::atoi(argv[++i]);
+        } else if ((arg == "-H" || arg == "--height") && i + 1 < argc) {
+            params.bar_height = (float)std::atof(argv[++i]);
+        } else if ((arg == "-T" || arg == "--height-txt") && i + 1 < argc) {
+            params.text_size = (float)std::atof(argv[++i]);
+        } else if ((arg == "-X" || arg == "--padd-x") && i + 1 < argc) {
+            params.quiet_zone_x = (float)std::atof(argv[++i]);
+        } else if ((arg == "-Y" || arg == "--padd-y") && i + 1 < argc) {
+            params.margin_y = (float)std::atof(argv[++i]);
+        } else if ((arg == "-y" || arg == "--padd-txt-y") && i + 1 < argc) {
+            params.text_gap_y = (float)std::atof(argv[++i]);
+        } else if ((arg == "-R" || arg == "--res-fact") && i + 1 < argc) {
+            params.module_width = (float)std::atof(argv[++i]);
+        } else if ((arg == "-C" || arg == "--comp-fact") && i + 1 < argc) {
+            float comp = (float)std::atof(argv[++i]);
+            if (comp > 0.01f) params.module_width /= comp;
+        } else if (arg == "--gui" || arg == "-g") {
+            // Handled in main()
+        } else {
+            std::cerr << "Unknown or incomplete option: " << arg << "\n";
+            return 1;
         }
     }
 
