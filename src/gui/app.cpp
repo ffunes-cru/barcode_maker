@@ -31,6 +31,8 @@ App::App() {
     strip_settings_.vertical_feed = true;
     strip_settings_.repeat_count = 10;
     strip_settings_.label_gap_mm = 4.0f;
+    strip_settings_.leading_margin_mm = 0.0f;
+    strip_settings_.trailing_margin_mm = 0.0f;
     strip_settings_.show_cut_lines = true;
     strip_settings_.rotate_90 = false;
     strip_settings_.center_on_tape = true;
@@ -581,6 +583,20 @@ void App::render_left_panel() {
             update_strip_texture();
         }
 
+        ImGui::Text("Margen Inicial Tira:");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::SliderFloat("##StripLeadMargin", &strip_settings_.leading_margin_mm, 0.0f, 15.0f, "%.1f mm")) {
+            update_strip_texture();
+        }
+        ImGui::SameLine();
+        ImGui::Text("Final:");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::SliderFloat("##StripTrailMargin", &strip_settings_.trailing_margin_mm, 0.0f, 15.0f, "%.1f mm")) {
+            update_strip_texture();
+        }
+
         if (ImGui::Checkbox("Linea separadora en zona de corte", &strip_settings_.show_cut_lines)) {
             update_strip_texture();
         }
@@ -915,10 +931,10 @@ void App::render_print_modal() {
 
         ImGui::Spacing();
 
-        static int print_target_mode = 0; // Default to single label as user often prints individual labels
-        ImGui::Text("Contenido a Imprimir:");
-        ImGui::RadioButton("Codigo Actual (Etiqueta Individual)", &print_target_mode, 0);
-        ImGui::RadioButton("Tira Continua Completa (Rollo Brother QL)", &print_target_mode, 1);
+        static int print_target_mode = 1; // Default to continuous strip (single long image) to avoid cutter gaps
+        ImGui::Text("Modo de Impresion en Rollo:");
+        ImGui::RadioButton("Tira Continua (1 sola imagen corrida - Sin pausas ni margenes de cuchilla)", &print_target_mode, 1);
+        ImGui::RadioButton("Etiqueta Individual (Corta y avanza en cada etiqueta)", &print_target_mode, 0);
 
         ImGui::Spacing();
 
@@ -939,21 +955,6 @@ void App::render_print_modal() {
         ImGui::Spacing();
         ImGui::SameLine();
         ImGui::Checkbox("Ajustar al ancho (fit-to-page)", &print_job_settings_.fit_to_page);
-
-        ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::Spacing();
-
-        // Exact command preview
-        std::string printer_to_use = print_job_settings_.printer_name.empty() ? "Brother_QL-1110NWB" : print_job_settings_.printer_name;
-        std::string cmd_preview = "lp -d \"" + printer_to_use + "\"";
-        if (print_job_settings_.fit_to_page) cmd_preview += " -o fit-to-page";
-        if (print_job_settings_.orientation > 0) cmd_preview += " -o orientation-requested=" + std::to_string(print_job_settings_.orientation);
-        if (print_job_settings_.copies > 1) cmd_preview += " -n " + std::to_string(print_job_settings_.copies);
-        cmd_preview += (print_target_mode == 0 ? " " + params_.input + ".png" : " tira_continua.png");
-
-        ImGui::TextDisabled("Comando a ejecutar en segundo plano:");
-        ImGui::TextColored(ImVec4(0.45f, 0.88f, 0.55f, 1.0f), "%s", cmd_preview.c_str());
 
         ImGui::Spacing();
         ImGui::Separator();

@@ -26,8 +26,8 @@ struct StripSettings {
     int repeat_count = 12;             // Number of copies
     bool use_batch_list = false;       // Use batch file items
     float label_gap_mm = 4.0f;         // Spacing between labels
-    float leading_margin_mm = 4.0f;    // Lead margin
-    float trailing_margin_mm = 4.0f;   // Tail margin
+    float leading_margin_mm = 0.0f;    // Lead margin (0mm default for no extra whitespace)
+    float trailing_margin_mm = 0.0f;   // Tail margin (0mm default)
     bool show_cut_lines = true;        // Draw cut guidelines
     int cut_line_style = 0;            // 0 = Dashed black line (troquelado), 1 = Solid black line, 2 = Side tick marks
     bool rotate_90 = false;            // Rotate individual barcode 90 deg
