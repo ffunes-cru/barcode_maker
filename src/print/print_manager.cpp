@@ -140,19 +140,14 @@ bool PrintManager::print_file(const std::string& file_path, const PrintJobSettin
         cmd << " -n " << settings.copies;
     }
 
-    // Do not force fixed PageSize or print-scaling so printer dynamically feeds to the exact image length
-    cmd << " -o BrTrimtape=OFF"; // Never cut off the leading edge of the first label!
-
+    // Cutter controls
     if (settings.cut_at_end) {
         cmd << " -o BrCutAtEnd=ON";
     } else {
         cmd << " -o BrCutAtEnd=OFF";
     }
-
     if (settings.cut_each_label) {
         cmd << " -o BrCutLabel=1";
-    } else {
-        cmd << " -o BrCutLabel=0";
     }
 
     if (settings.fit_to_page) {

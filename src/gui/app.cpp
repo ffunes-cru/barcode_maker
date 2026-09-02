@@ -1056,8 +1056,10 @@ void App::render_print_modal() {
             bool ok = false;
             if (print_target_mode == 0) {
                 BarcodeImage single = engine_.generate(params_);
+                PrintJobSettings single_job = print_job_settings_;
+                single_job.fit_to_page = true; // Exact command: -o fit-to-page -o orientation-requested=3
                 ok = print_manager_.print_rgba_buffer(single.rgba, single.width, single.height,
-                                                      print_job_settings_, out_msg);
+                                                      single_job, out_msg);
             } else {
                 std::vector<std::string> labels;
                 if (input_mode_ == InputMode::BatchFile && strip_settings_.use_batch_list && !batch_items_.empty()) {
