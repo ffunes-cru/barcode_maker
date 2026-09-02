@@ -3,7 +3,7 @@
 ; ==============================================================================
 
 #define MyAppName "Code128 Studio"
-#define MyAppVersion "0.5"
+#define MyAppVersion "0.5.8"
 #define MyAppPublisher "Cruceros Barcode Team"
 #define MyAppExeName "code128_studio.exe"
 #define GitHubRepo "ffunes-cru/barcode_maker"

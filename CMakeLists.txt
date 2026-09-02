@@ -9,6 +9,9 @@ project(Code128Studio C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(CODE128_VERSION "0.5.8")
+add_compile_definitions(CODE128_APP_VERSION="${CODE128_VERSION}")
+
 if (MSVC)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif()

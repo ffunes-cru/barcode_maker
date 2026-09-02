@@ -104,7 +104,7 @@ jobs:
           if (Test-Path readme.txt) { cp readme.txt release_win\ }
           # Copy runtime DLLs from vcpkg
           Get-ChildItem "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" | Copy-Item -Destination release_win\bin\
-          Compress-Archive -Path release_win\* -DestinationPath code128-studio-windows-x64.zip
+          Compress-Archive -Path release_win\bin\* -DestinationPath code128-studio-windows-x64.zip
 
       - name: Install Inno Setup
         run: choco install innosetup -y

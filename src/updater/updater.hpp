@@ -3,7 +3,9 @@
 #include <string>
 #include <functional>
 
-#define CODE128_APP_VERSION "0.1"
+#ifndef CODE128_APP_VERSION
+#define CODE128_APP_VERSION "0.5.8"
+#endif
 #define CODE128_GITHUB_REPO "ffunes-cru/barcode_maker"
 
 struct UpdateInfo {
