@@ -422,8 +422,8 @@ void App::render_ui() {
 }
 
 void App::render_left_panel() {
-    // --- 1. Input Data ---
-    if (ImGui::CollapsingHeader("1. Datos de Entrada", ImGuiTreeNodeFlags_DefaultOpen)) {
+    // --- 1. Data Input ---
+    if (ImGui::CollapsingHeader("1. Datos a Codificar", ImGuiTreeNodeFlags_DefaultOpen)) {
         if (input_mode_ == InputMode::Manual) {
             ImGui::Text("Texto a codificar (-s):");
             if (ImGui::InputText("##ManualInput", manual_input_buf_, sizeof(manual_input_buf_))) {
@@ -431,16 +431,16 @@ void App::render_left_panel() {
                 update_barcode_data();
             }
         } else {
-            ImGui::Text("Ruta del archivo (-c):");
+            ImGui::Text("Ruta del archivo de lote (-c):");
             ImGui::InputText("##BatchFilePath", batch_file_path_, sizeof(batch_file_path_));
-            if (ImGui::Button("Cargar Archivo")) {
+            if (ImGui::Button("[ Cargar Archivo ]")) {
                 load_batch_file(batch_file_path_);
             }
             ImGui::SameLine();
-            ImGui::Text("(%zu codigos)", batch_items_.size());
+            ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "(%zu codigos detectados)", batch_items_.size());
 
             if (!batch_items_.empty()) {
-                ImGui::Text("Limite de elementos (-A):");
+                ImGui::Text("Procesar hasta (-A elementos):");
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(100);
                 if (ImGui::InputInt("##LimitA", &batch_array_len_limit_)) {
@@ -452,22 +452,22 @@ void App::render_left_panel() {
 
     ImGui::Spacing();
 
-    // --- 2. Fractional Barcode Geometry Parameters ---
-    if (ImGui::CollapsingHeader("2. Geometria Fraccional", ImGuiTreeNodeFlags_DefaultOpen)) {
+    // --- 2. Barcode Geometry Parameters ---
+    if (ImGui::CollapsingHeader("2. Geometria del Codigo de Barras", ImGuiTreeNodeFlags_DefaultOpen)) {
         float mod_mm = params_.module_width / (300.0f / 25.4f);
-        ImGui::Text("Ancho de Modulo (X-Dim): %.2f px (%.2f mm)", params_.module_width, mod_mm);
+        ImGui::Text("Grosor de Barras (Modulo X): %.2f px (%.2f mm)", params_.module_width, mod_mm);
         if (ImGui::SliderFloat("##ModWidth", &params_.module_width, 1.0f, 16.0f, "%.2f px")) {
             update_barcode_data();
         }
 
         float bar_h_mm = params_.bar_height / (300.0f / 25.4f);
-        ImGui::Text("Altura de Barras: %.1f px (%.1f mm)", params_.bar_height, bar_h_mm);
+        ImGui::Text("Altura de las Barras: %.1f px (%.1f mm)", params_.bar_height, bar_h_mm);
         if (ImGui::SliderFloat("##BarHeight", &params_.bar_height, 10.0f, 250.0f, "%.1f px")) {
             update_barcode_data();
         }
 
         float txt_mm = params_.text_size / (300.0f / 25.4f);
-        ImGui::Text("Tamano de Texto: %.1f px (%.1f mm)", params_.text_size, txt_mm);
+        ImGui::Text("Tamano de Tipografia: %.1f px (%.1f mm)", params_.text_size, txt_mm);
         if (ImGui::SliderFloat("##TextSize", &params_.text_size, 8.0f, 250.0f, "%.1f px")) {
             update_barcode_data();
         }
@@ -483,31 +483,35 @@ void App::render_left_panel() {
         }
 
         float qz_mm = (params_.quiet_zone_x * params_.module_width) / (300.0f / 25.4f);
-        ImGui::Text("Quiet Zone (Margen X): %.1f mod (%.1f mm)", params_.quiet_zone_x, qz_mm);
+        ImGui::Text("Margenes Laterales (Quiet Zone): %.1f mod (%.1f mm)", params_.quiet_zone_x, qz_mm);
         if (ImGui::SliderFloat("##QuietZone", &params_.quiet_zone_x, 0.0f, 30.0f, "%.1f mod")) {
             update_barcode_data();
         }
-        if (params_.quiet_zone_x < 10.0f) {
-            ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f), "[!] Quiet zone recomendada: >= 10 modulos");
+        if (params_.quiet_zone_x == 0.0f) {
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[OK] Sin margenes: barras tocan el 100%% del ancho");
+        } else if (params_.quiet_zone_x < 10.0f) {
+            ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f), "[!] Estandar Code128 recomienda >= 10 modulos");
         }
 
-        ImGui::Text("Margen Superior / Inferior (Y):");
+        float marg_y_mm = params_.margin_y / (300.0f / 25.4f);
+        ImGui::Text("Margen Superior e Inferior (Y): %.1f px (%.1f mm)", params_.margin_y, marg_y_mm);
         if (ImGui::SliderFloat("##MarginY", &params_.margin_y, 0.0f, 30.0f, "%.1f px")) {
             update_barcode_data();
         }
 
-        ImGui::Text("Espacio Barras-Texto (Y):");
+        float gap_y_mm = params_.text_gap_y / (300.0f / 25.4f);
+        ImGui::Text("Separacion entre Barras y Texto: %.1f px (%.1f mm)", params_.text_gap_y, gap_y_mm);
         if (ImGui::SliderFloat("##TextGapY", &params_.text_gap_y, 0.0f, 30.0f, "%.1f px")) {
             update_barcode_data();
         }
 
         ImGui::Spacing();
-        if (ImGui::Checkbox("Linea separadora de corte en etiqueta", &params_.show_cut_line)) {
+        if (ImGui::Checkbox("Linea separadora en zona de corte", &params_.show_cut_line)) {
             update_barcode_data();
         }
         if (params_.show_cut_line) {
             ImGui::Indent(16.0f);
-            ImGui::Text("Estilo de corte:");
+            ImGui::Text("Estilo de troquelado:");
             ImGui::SetNextItemWidth(-1);
             const char* cut_styles[] = { "Punteada (troquel)", "Solida continua", "Marcas laterales" };
             if (ImGui::Combo("##SingleCutStyle", &params_.cut_line_style, cut_styles, IM_ARRAYSIZE(cut_styles))) {
@@ -519,8 +523,8 @@ void App::render_left_panel() {
 
     ImGui::Spacing();
 
-    // --- 3. Brother Label & Presets Management (ABM integrado) ---
-    if (ImGui::CollapsingHeader("3. Impresora Brother QL y Presets", ImGuiTreeNodeFlags_DefaultOpen)) {
+    // --- 3. Brother Tape & Presets Management ---
+    if (ImGui::CollapsingHeader("3. Formato de Cinta Brother QL y Presets", ImGuiTreeNodeFlags_DefaultOpen)) {
         const auto& presets = preset_manager_.get_presets();
         ImGui::Text("Preset Activo:");
 
@@ -567,7 +571,7 @@ void App::render_left_panel() {
             }
         }
         ImGui::NextColumn();
-        if (ImGui::Button("Gestionar ABM...", ImVec2(-1, 0))) {
+        if (ImGui::Button("Administrador ABM...", ImVec2(-1, 0))) {
             show_preset_abm_modal_ = true;
             abm_selected_preset_idx_ = selected_preset_idx_;
             const Preset* p = preset_manager_.get_preset(abm_selected_preset_idx_);
@@ -580,7 +584,7 @@ void App::render_left_panel() {
 
         ImGui::Spacing();
 
-        if (ImGui::Button("[ Auto-Ajustar a 99 mm (Margen Estandar) ]", ImVec2(-1, 0))) {
+        if (ImGui::Button("[ Ajustar Barras a Ancho Estandar (99 mm) ]", ImVec2(-1, 0))) {
             float dots_per_mm = strip_settings_.dpi / 25.4f;
             float printable_w_px = strip_settings_.printable_width_mm * dots_per_mm;
             int code_len = (int)current_encoded_bits_.length();
@@ -614,7 +618,7 @@ void App::render_left_panel() {
         ImGui::Spacing();
 
         ImGui::Columns(2, "tape_dims_grid", false);
-        ImGui::Text("Ancho Rollo (mm):");
+        ImGui::Text("Ancho Cinta (mm):");
         ImGui::SetNextItemWidth(-1);
         if (ImGui::InputFloat("##TapeWidthMm", &strip_settings_.roll_width_mm, 1.0f, 5.0f, "%.1f mm")) {
             if (strip_settings_.roll_width_mm < 10.0f) strip_settings_.roll_width_mm = 10.0f;
@@ -641,12 +645,12 @@ void App::render_left_panel() {
 
     ImGui::Spacing();
 
-    // --- 4. Exportacion e Impresion ---
-    if (ImGui::CollapsingHeader("4. Exportacion e Impresion", ImGuiTreeNodeFlags_DefaultOpen)) {
+    // --- 4. Output Actions & Printing ---
+    if (ImGui::CollapsingHeader("4. Acciones de Salida e Impresion", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::Text("Carpeta de salida (-o):");
         ImGui::InputText("##OutputDir", output_dir_buf_, sizeof(output_dir_buf_));
 
-        if (ImGui::Button("[ Guardar PNG Individual ]", ImVec2(-1, 0))) {
+        if (ImGui::Button("[ Guardar PNG de Etiqueta ]", ImVec2(-1, 0))) {
             export_current_png();
         }
 
@@ -660,31 +664,38 @@ void App::render_left_panel() {
         ImGui::Separator();
         ImGui::Spacing();
 
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.12f, 0.45f, 0.78f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.18f, 0.55f, 0.90f, 1.0f));
         if (ImGui::Button("[ Imprimir Directo en Brother QL... ]", ImVec2(-1, 38))) {
             show_print_dialog_ = true;
         }
+        ImGui::PopStyleColor(2);
     }
 }
 
 void App::render_right_panel() {
-    if (input_mode_ == InputMode::BatchFile) {
-        ImGuiTabItemFlags tab1_flags = (request_tab_switch_ && target_tab_index_ == 0) ? ImGuiTabItemFlags_SetSelected : 0;
-        ImGuiTabItemFlags tab2_flags = (request_tab_switch_ && target_tab_index_ == 2) ? ImGuiTabItemFlags_SetSelected : 0;
-        request_tab_switch_ = false;
+    ImGuiTabItemFlags tab1_flags = (request_tab_switch_ && target_tab_index_ == 0) ? ImGuiTabItemFlags_SetSelected : 0;
+    ImGuiTabItemFlags tab2_flags = (request_tab_switch_ && target_tab_index_ == 1) ? ImGuiTabItemFlags_SetSelected : 0;
+    ImGuiTabItemFlags tab3_flags = (request_tab_switch_ && target_tab_index_ == 2) ? ImGuiTabItemFlags_SetSelected : 0;
+    request_tab_switch_ = false;
 
-        if (ImGui::BeginTabBar("MainRightTabBar", ImGuiTabBarFlags_None)) {
-            if (ImGui::BeginTabItem("Previsualizacion de Etiqueta", nullptr, tab1_flags)) {
-                render_live_preview_tab();
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Lista de Lote", nullptr, tab2_flags)) {
-                render_batch_table_tab();
-                ImGui::EndTabItem();
-            }
-            ImGui::EndTabBar();
+    if (ImGui::BeginTabBar("MainRightTabBar", ImGuiTabBarFlags_None)) {
+        if (ImGui::BeginTabItem("Rollo en Vivo (Emulacion Brother QL)", nullptr, tab1_flags)) {
+            render_strip_preview_tab();
+            ImGui::EndTabItem();
         }
-    } else {
-        render_live_preview_tab();
+
+        if (ImGui::BeginTabItem("Detalle de Etiqueta (Pixeles 1:1)", nullptr, tab2_flags)) {
+            render_live_preview_tab();
+            ImGui::EndTabItem();
+        }
+
+        if (input_mode_ == InputMode::BatchFile && ImGui::BeginTabItem("Lista de Lote", nullptr, tab3_flags)) {
+            render_batch_table_tab();
+            ImGui::EndTabItem();
+        }
+
+        ImGui::EndTabBar();
     }
 }
 
@@ -755,105 +766,154 @@ void App::render_live_preview_tab() {
 }
 
 void App::render_strip_preview_tab() {
-    float dots_per_mm = strip_settings_.dpi / 25.4f;
+    float dots_per_mm = 300.0f / 25.4f;
     float tape_w_mm = strip_settings_.roll_width_mm;
     float print_w_mm = strip_settings_.printable_width_mm;
 
-    std::vector<std::string> labels_to_render;
-    if (input_mode_ == InputMode::BatchFile && strip_settings_.use_batch_list && !batch_items_.empty()) {
-        int count = (batch_array_len_limit_ > 0) ? std::min((int)batch_items_.size(), batch_array_len_limit_)
-                                                 : (int)batch_items_.size();
-        labels_to_render.assign(batch_items_.begin(), batch_items_.begin() + count);
-    } else {
-        labels_to_render.assign(std::clamp(strip_settings_.repeat_count, 1, 30), params_.input);
-    }
+    float raw_w = (float)calculated_width_px_;
+    float raw_h = (float)calculated_height_px_;
+    if (raw_w <= 0.0f) raw_w = 100.0f;
+    if (raw_h <= 0.0f) raw_h = 50.0f;
 
-    float single_w = (float)calculated_width_px_;
-    float single_h = (float)calculated_height_px_;
-    float gap_px = strip_settings_.label_gap_mm * dots_per_mm;
-    float lead_px = strip_settings_.leading_margin_mm * dots_per_mm;
-    float trail_px = strip_settings_.trailing_margin_mm * dots_per_mm;
+    // FIT-TO-PAGE CALCULATION (What the physical printer does):
+    // When printed with -o fit-to-page, CUPS stretches the image width to fill print_w_mm.
+    // The height scales proportionally.
+    float target_print_dots = (print_w_mm / 25.4f) * 300.0f;
+    float fit_scale = target_print_dots / raw_w;
+    float label_h_dots = raw_h * fit_scale;
+    float label_h_mm = (label_h_dots / 300.0f) * 25.4f;
 
-    float label_on_tape_w = strip_settings_.rotate_90 ? single_h : single_w;
-    float label_on_tape_h = strip_settings_.rotate_90 ? single_w : single_h;
+    // Number of simulated labels on the roll:
+    static int sim_copies = 3;
+    int num_labels = (input_mode_ == InputMode::Manual) ? sim_copies : std::min((int)batch_items_.size(), 15);
+    if (num_labels < 1) num_labels = 1;
 
-    float tape_width_px = tape_w_mm * dots_per_mm;
-    float total_strip_h = lead_px + (label_on_tape_h + gap_px) * labels_to_render.size() - gap_px + trail_px;
-    float total_strip_mm = total_strip_h / dots_per_mm;
-    float total_strip_cm = total_strip_mm / 10.0f;
-    float tape_w_cm = tape_w_mm / 10.0f;
+    // Mechanical gap between prints (~0.5 cm = 5.0 mm):
+    float cut_gap_mm = 5.0f;
+    float lead_mm = 3.0f;
+    float trail_mm = 3.0f;
 
-    bool barcode_exceeds_tape = (label_on_tape_w > tape_width_px);
-    float barcode_mm_w = label_on_tape_w / dots_per_mm;
-    float qz_mm = (params_.quiet_zone_x * params_.module_width) / dots_per_mm;
-    float tape_margin_mm = std::max(0.0f, (tape_w_mm - barcode_mm_w) * 0.5f);
-    float total_free_mm = tape_margin_mm + qz_mm;
+    float total_roll_mm = lead_mm + num_labels * label_h_mm + (num_labels - 1) * cut_gap_mm + trail_mm;
+    float total_roll_cm = total_roll_mm / 10.0f;
 
-    ImGui::BeginChild("StripMetricCard", ImVec2(0, 62), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    // Metric HUD Card at Top:
+    ImGui::BeginChild("RollMetricCard", ImVec2(0, 58), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     {
-        ImGui::Columns(4, "strip_metrics_col", false);
-        ImGui::Text("Ancho Rollo: %.1f cm (%.1f mm)", tape_w_cm, tape_w_mm);
+        ImGui::Columns(4, "roll_metrics_col", false);
+        ImGui::Text("Ancho Cinta: %.1f mm", tape_w_mm);
+        ImGui::TextDisabled("Imprimible: %.1f mm", print_w_mm);
         ImGui::NextColumn();
-        ImGui::Text("Largo Tira: %.1f cm (%.1f in)", total_strip_cm, total_strip_mm / 25.4f);
+        ImGui::Text("Avance por Etiqueta: %.1f mm", label_h_mm);
+        ImGui::TextDisabled("Equivale a: %.1f cm", label_h_mm / 10.0f);
         ImGui::NextColumn();
-        ImGui::Text("Etiquetas: %zu en tira", labels_to_render.size());
+        ImGui::Text("Largo Total (%d copias): %.1f cm", num_labels, total_roll_cm);
+        ImGui::TextDisabled("Dist. entre cortes: %.1f mm (0.5 cm)", cut_gap_mm);
         ImGui::NextColumn();
-        if (barcode_exceeds_tape) {
-            ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "[!] Excede Rollo (%.1f mm)", barcode_mm_w);
-        } else {
-            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Margen Total: %.1f mm", total_free_mm);
-            ImGui::TextDisabled("Cinta: %.1f mm | QZ: %.1f mm", tape_margin_mm, qz_mm);
-        }
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[OK] Emulacion Fit-to-Page");
+        ImGui::TextDisabled("Escala: %.2fx en cinta", fit_scale);
         ImGui::Columns(1);
     }
     ImGui::EndChild();
 
-    if (barcode_exceeds_tape) {
-        ImGui::Spacing();
-        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f),
-            "[!] Aviso: El codigo mide %.1f mm y excede el rollo de %.1f mm. Activa 'Rotar 90 deg' o presiona 'Auto-Ajustar a Ancho de Rollo'.",
-            barcode_mm_w, tape_w_mm);
-    }
-
     ImGui::Spacing();
 
-    ImGui::Text("Escala de Vista:");
+    // Controls line:
+    if (input_mode_ == InputMode::Manual) {
+        ImGui::Text("Simular Copias:");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(120);
+        ImGui::SliderInt("##SimCopies", &sim_copies, 1, 10, "%d copias");
+        ImGui::SameLine();
+    }
+
+    ImGui::Text("Zoom:");
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(180);
-    ImGui::SliderFloat("##StripZoom", &strip_zoom_, 0.2f, 2.0f, "%.2fx");
+    ImGui::SetNextItemWidth(140);
+    ImGui::SliderFloat("##RollZoom", &strip_zoom_, 0.2f, 2.0f, "%.2fx");
     ImGui::SameLine();
-    if (ImGui::SmallButton("100%")) strip_zoom_ = 1.0f;
+    if (ImGui::SmallButton("100% (Real)")) strip_zoom_ = 1.0f;
     ImGui::SameLine();
     if (ImGui::SmallButton("Ajustar al Ancho")) {
         float avail_w = ImGui::GetContentRegionAvail().x - 60.0f;
-        if (tape_width_px > 0) strip_zoom_ = std::clamp(avail_w / tape_width_px, 0.3f, 1.5f);
+        float tape_px_at_1 = (tape_w_mm / 25.4f) * 300.0f;
+        if (tape_px_at_1 > 0) strip_zoom_ = std::clamp(avail_w / tape_px_at_1, 0.2f, 2.0f);
     }
 
     ImGui::Spacing();
 
-    // --- 1:1 Literal WYSIWYG Continuous Tape Bitmap via Direct OpenGL Texture ---
+    // Render Canvas:
     ImVec2 avail = ImGui::GetContentRegionAvail();
-    ImGui::BeginChild("GPUVerticalStripCanvas", ImVec2(avail.x, avail.y - 10), true, ImGuiWindowFlags_AlwaysVerticalScrollbar);
+    ImGui::BeginChild("RollTapeCanvas", ImVec2(avail.x, avail.y - 10), true, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     {
         float scale = strip_zoom_;
-        float tape_render_w = (float)strip_tex_w_ * scale;
-        float tape_render_h = (float)strip_tex_h_ * scale;
+        float tape_w_px = (tape_w_mm / 25.4f) * 300.0f * scale;
+        float print_w_px = (print_w_mm / 25.4f) * 300.0f * scale;
+        float margin_side_px = (tape_w_px - print_w_px) * 0.5f;
 
-        float offset_x = std::max(20.0f, (avail.x - tape_render_w - 30.0f) * 0.5f);
+        float label_h_px = label_h_dots * scale;
+        float gap_px = (cut_gap_mm / 25.4f) * 300.0f * scale;
+        float lead_px = (lead_mm / 25.4f) * 300.0f * scale;
+        float trail_px = (trail_mm / 25.4f) * 300.0f * scale;
+
+        float total_tape_h_px = lead_px + num_labels * label_h_px + (num_labels - 1) * gap_px + trail_px;
+
+        float offset_x = std::max(20.0f, (avail.x - tape_w_px - 30.0f) * 0.5f);
         float offset_y = 20.0f;
 
         ImGui::SetCursorPos(ImVec2(offset_x, offset_y));
-        if (strip_texture_id_ != 0) {
-            ImVec2 screen_p = ImGui::GetCursorScreenPos();
-            ImDrawList* dl = ImGui::GetWindowDrawList();
-            dl->AddRect(ImVec2(screen_p.x - 1, screen_p.y - 1),
-                        ImVec2(screen_p.x + tape_render_w + 1, screen_p.y + tape_render_h + 1),
-                        IM_COL32(110, 110, 110, 255), 2.0f);
+        ImVec2 tape_p0 = ImGui::GetCursorScreenPos();
+        ImVec2 tape_p1 = ImVec2(tape_p0.x + tape_w_px, tape_p0.y + total_tape_h_px);
 
-            ImGui::Image((ImTextureID)(intptr_t)strip_texture_id_, ImVec2(tape_render_w, tape_render_h));
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+
+        // 1. Draw Paper Shadow
+        dl->AddRectFilled(ImVec2(tape_p0.x + 4.0f, tape_p0.y + 4.0f),
+                          ImVec2(tape_p1.x + 4.0f, tape_p1.y + 4.0f),
+                          IM_COL32(15, 15, 20, 140), 4.0f);
+
+        // 2. Draw White Continuous Tape Roll Body
+        dl->AddRectFilled(tape_p0, tape_p1, IM_COL32(252, 252, 252, 255), 3.0f);
+        dl->AddRect(tape_p0, tape_p1, IM_COL32(190, 190, 200, 255), 3.0f, 0, 1.5f);
+
+        // 3. Draw Labels along the Tape
+        float cur_y = tape_p0.y + lead_px;
+        for (int i = 0; i < num_labels; i++) {
+            ImVec2 bc_p0 = ImVec2(tape_p0.x + margin_side_px, cur_y);
+            ImVec2 bc_p1 = ImVec2(tape_p0.x + margin_side_px + print_w_px, cur_y + label_h_px);
+
+            if (single_texture_id_ != 0) {
+                dl->AddImage((ImTextureID)(intptr_t)single_texture_id_, bc_p0, bc_p1);
+            }
+
+            // Draw Subtle bounding frame around label
+            dl->AddRect(bc_p0, bc_p1, IM_COL32(210, 210, 220, 180), 0.0f, 0, 1.0f);
+
+            // Draw Cutter Line between labels
+            if (i < num_labels - 1) {
+                float cut_line_y = cur_y + label_h_px + (gap_px * 0.5f);
+                for (float x = tape_p0.x; x < tape_p0.x + tape_w_px; x += 12.0f) {
+                    dl->AddLine(ImVec2(x, cut_line_y),
+                                ImVec2(std::min(x + 7.0f, tape_p0.x + tape_w_px), cut_line_y),
+                                IM_COL32(220, 60, 60, 230), 1.5f);
+                }
+                dl->AddText(ImVec2(tape_p1.x + 8.0f, cut_line_y - 7.0f),
+                            IM_COL32(220, 60, 60, 255), "Cuchilla QL");
+            }
+
+            cur_y += label_h_px + gap_px;
         }
 
-        ImGui::Dummy(ImVec2(offset_x * 2 + tape_render_w, offset_y * 2 + tape_render_h + 40.0f));
+        // 4. Final Cutter Line at the end of the roll
+        float final_cut_y = tape_p1.y - (trail_px * 0.5f);
+        for (float x = tape_p0.x; x < tape_p0.x + tape_w_px; x += 12.0f) {
+            dl->AddLine(ImVec2(x, final_cut_y),
+                        ImVec2(std::min(x + 7.0f, tape_p0.x + tape_w_px), final_cut_y),
+                        IM_COL32(40, 160, 60, 255), 2.0f);
+        }
+        dl->AddText(ImVec2(tape_p1.x + 8.0f, final_cut_y - 7.0f),
+                    IM_COL32(40, 160, 60, 255), "Corte Final");
+
+        ImGui::Dummy(ImVec2(offset_x * 2 + tape_w_px + 100.0f, offset_y * 2 + total_tape_h_px + 30.0f));
     }
     ImGui::EndChild();
 }
@@ -1293,49 +1353,6 @@ void App::render_preset_abm_modal() {
                     ImGui::Combo("##ABMCutStyle", &abm_edit_preset_.cut_line_style, cut_styles, IM_ARRAYSIZE(cut_styles));
                 }
 
-                ImGui::Spacing();
-                ImGui::Separator();
-                ImGui::Spacing();
-
-                // Actions for selected preset
-                ImGui::Columns(3, "abm_actions_col", false);
-                if (ImGui::Button("[ Guardar Cambios ]", ImVec2(-1, 0))) {
-                    abm_edit_preset_.name = abm_preset_name_buf_;
-                    abm_edit_preset_.description = abm_preset_desc_buf_;
-                    std::string err;
-                    if (preset_manager_.update_preset(abm_selected_preset_idx_, abm_edit_preset_, err)) {
-                        abm_status_msg_ = "Preset '" + abm_edit_preset_.name + "' guardado con exito";
-                        abm_status_timer_ = 3.0f;
-                    } else {
-                        abm_status_msg_ = "Error: " + err;
-                        abm_status_timer_ = 4.0f;
-                    }
-                }
-                ImGui::NextColumn();
-                if (ImGui::Button("[ Copiar del Lienzo ]", ImVec2(-1, 0))) {
-                    abm_edit_preset_.module_width = params_.module_width;
-                    abm_edit_preset_.bar_height = params_.bar_height;
-                    abm_edit_preset_.text_size = params_.text_size;
-                    abm_edit_preset_.quiet_zone_x = params_.quiet_zone_x;
-                    abm_edit_preset_.margin_y = params_.margin_y;
-                    abm_edit_preset_.text_gap_y = params_.text_gap_y;
-                    abm_edit_preset_.roll_width_mm = strip_settings_.roll_width_mm;
-                    abm_edit_preset_.printable_width_mm = strip_settings_.printable_width_mm;
-                    abm_edit_preset_.label_gap_mm = strip_settings_.label_gap_mm;
-                    abm_edit_preset_.repeat_count = strip_settings_.repeat_count;
-                    abm_edit_preset_.rotate_90 = strip_settings_.rotate_90;
-                    abm_edit_preset_.show_cut_lines = strip_settings_.show_cut_lines;
-                    abm_status_msg_ = "Parametros del lienzo copiados al editor";
-                    abm_status_timer_ = 3.0f;
-                }
-                ImGui::NextColumn();
-                if (ImGui::Button("[ Aplicar a la App ]", ImVec2(-1, 0))) {
-                    apply_preset(abm_edit_preset_);
-                    selected_preset_idx_ = abm_selected_preset_idx_;
-                    abm_status_msg_ = "Preset '" + abm_edit_preset_.name + "' aplicado al lienzo";
-                    abm_status_timer_ = 3.0f;
-                }
-                ImGui::Columns(1);
             } else {
                 ImGui::Text("Selecciona o crea un preset en la lista izquierda.");
             }
