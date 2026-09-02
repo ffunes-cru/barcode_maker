@@ -142,6 +142,7 @@ bool PrintManager::print_file(const std::string& file_path, const PrintJobSettin
     if (settings.copies > 1) {
         cmd << " -n " << settings.copies;
     }
+    cmd << " -o BrCutAtEnd=ON";
     cmd << " \"" << file_path << "\" 2>&1";
 
     std::string cmd_str = cmd.str();

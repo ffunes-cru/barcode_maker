@@ -382,8 +382,9 @@ void App::render_ui() {
 
     ImGui::Spacing();
 
-    float left_panel_width = 405.0f;
-    float right_panel_width = ImGui::GetContentRegionAvail().x - left_panel_width - 12.0f;
+    static float left_panel_width = 460.0f;
+    float avail_w = ImGui::GetContentRegionAvail().x;
+    if (left_panel_width > avail_w - 300.0f) left_panel_width = std::max(380.0f, avail_w - 300.0f);
 
     ImGui::BeginChild("LeftPanelChild", ImVec2(left_panel_width, 0), true);
     render_left_panel();
@@ -391,6 +392,24 @@ void App::render_ui() {
 
     ImGui::SameLine();
 
+    // Interactive Resizable Splitter
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.22f, 0.22f, 0.25f, 0.5f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.38f, 0.80f, 1.0f, 0.8f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.38f, 0.80f, 1.0f, 1.0f));
+    ImGui::Button("##MainSplitter", ImVec2(5.0f, -1));
+    if (ImGui::IsItemActive()) {
+        left_panel_width += ImGui::GetIO().MouseDelta.x;
+        if (left_panel_width < 360.0f) left_panel_width = 360.0f;
+        if (left_panel_width > avail_w - 250.0f) left_panel_width = avail_w - 250.0f;
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+    }
+    ImGui::PopStyleColor(3);
+
+    ImGui::SameLine();
+
+    float right_panel_width = ImGui::GetContentRegionAvail().x;
     ImGui::BeginChild("RightPanelChild", ImVec2(right_panel_width, 0), true);
     render_right_panel();
     ImGui::EndChild();
@@ -477,12 +496,14 @@ void App::render_left_panel() {
             update_barcode_data();
         }
         if (params_.show_cut_line) {
-            ImGui::SameLine();
+            ImGui::Indent(16.0f);
+            ImGui::Text("Estilo de corte:");
+            ImGui::SetNextItemWidth(-1);
             const char* cut_styles[] = { "Punteada (troquel)", "Solida continua", "Marcas laterales" };
-            ImGui::SetNextItemWidth(170);
             if (ImGui::Combo("##SingleCutStyle", &params_.cut_line_style, cut_styles, IM_ARRAYSIZE(cut_styles))) {
                 update_barcode_data();
             }
+            ImGui::Unindent(16.0f);
         }
     }
 
@@ -546,8 +567,11 @@ void App::render_left_panel() {
             }
         }
 
-        ImGui::Text("Ancho Cinta / Rollo (mm):");
-        ImGui::SetNextItemWidth(130);
+        ImGui::Spacing();
+
+        ImGui::Columns(2, "tape_dims_grid", false);
+        ImGui::Text("Ancho Rollo (mm):");
+        ImGui::SetNextItemWidth(-1);
         if (ImGui::InputFloat("##TapeWidthMm", &strip_settings_.roll_width_mm, 1.0f, 5.0f, "%.1f mm")) {
             if (strip_settings_.roll_width_mm < 10.0f) strip_settings_.roll_width_mm = 10.0f;
             if (strip_settings_.printable_width_mm > strip_settings_.roll_width_mm) {
@@ -555,10 +579,9 @@ void App::render_left_panel() {
             }
             update_strip_texture();
         }
-        ImGui::SameLine();
-        ImGui::Text("Imprimible:");
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(100);
+        ImGui::NextColumn();
+        ImGui::Text("Imprimible (mm):");
+        ImGui::SetNextItemWidth(-1);
         if (ImGui::InputFloat("##PrintWidthMm", &strip_settings_.printable_width_mm, 1.0f, 5.0f, "%.1f mm")) {
             if (strip_settings_.printable_width_mm > strip_settings_.roll_width_mm) {
                 strip_settings_.printable_width_mm = strip_settings_.roll_width_mm;
@@ -566,6 +589,9 @@ void App::render_left_panel() {
             if (strip_settings_.printable_width_mm < 5.0f) strip_settings_.printable_width_mm = 5.0f;
             update_strip_texture();
         }
+        ImGui::Columns(1);
+
+        ImGui::Spacing();
 
         if (input_mode_ == InputMode::Manual) {
             ImGui::Text("Repeticiones en tira:");
@@ -583,31 +609,36 @@ void App::render_left_panel() {
             update_strip_texture();
         }
 
-        ImGui::Text("Margen Inicial Tira:");
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(100);
+        ImGui::Columns(2, "strip_margins_grid", false);
+        ImGui::Text("Margen Inicial (mm):");
+        ImGui::SetNextItemWidth(-1);
         if (ImGui::SliderFloat("##StripLeadMargin", &strip_settings_.leading_margin_mm, 0.0f, 15.0f, "%.1f mm")) {
             update_strip_texture();
         }
-        ImGui::SameLine();
-        ImGui::Text("Final:");
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(100);
+        ImGui::NextColumn();
+        ImGui::Text("Margen Final (mm):");
+        ImGui::SetNextItemWidth(-1);
         if (ImGui::SliderFloat("##StripTrailMargin", &strip_settings_.trailing_margin_mm, 0.0f, 15.0f, "%.1f mm")) {
             update_strip_texture();
         }
+        ImGui::Columns(1);
+
+        ImGui::Spacing();
 
         if (ImGui::Checkbox("Linea separadora en zona de corte", &strip_settings_.show_cut_lines)) {
             update_strip_texture();
         }
         if (strip_settings_.show_cut_lines) {
-            ImGui::SameLine();
+            ImGui::Indent(16.0f);
+            ImGui::Text("Estilo de corte en tira:");
+            ImGui::SetNextItemWidth(-1);
             const char* cut_styles[] = { "Punteada (troquel)", "Solida continua", "Marcas laterales" };
-            ImGui::SetNextItemWidth(170);
             if (ImGui::Combo("##StripCutStyle", &strip_settings_.cut_line_style, cut_styles, IM_ARRAYSIZE(cut_styles))) {
                 update_strip_texture();
             }
+            ImGui::Unindent(16.0f);
         }
+
         if (ImGui::Checkbox("Rotar 90 deg", &strip_settings_.rotate_90)) {
             update_strip_texture();
         }
@@ -951,10 +982,17 @@ void App::render_print_modal() {
         ImGui::InputInt("##PrintCopies", &print_job_settings_.copies);
         if (print_job_settings_.copies < 1) print_job_settings_.copies = 1;
 
-        ImGui::SameLine();
-        ImGui::Spacing();
-        ImGui::SameLine();
-        ImGui::Checkbox("Ajustar al ancho (fit-to-page)", &print_job_settings_.fit_to_page);
+        if (print_target_mode == 0) {
+            ImGui::SameLine();
+            ImGui::Spacing();
+            ImGui::SameLine();
+            ImGui::Checkbox("Ajustar al ancho (fit-to-page)", &print_job_settings_.fit_to_page);
+        } else {
+            ImGui::SameLine();
+            ImGui::Spacing();
+            ImGui::SameLine();
+            ImGui::TextDisabled("(Escala 1:1 nativa - Sin encogimiento)");
+        }
 
         ImGui::Spacing();
         ImGui::Separator();
@@ -977,8 +1015,15 @@ void App::render_print_modal() {
                     labels.assign(strip_settings_.repeat_count, params_.input);
                 }
                 StripImage strip = StripGenerator::GenerateStrip(engine_, params_, labels, strip_settings_);
+
+                // Continuous strips are generated at the exact roll width (e.g. 1224 px @ 300 DPI).
+                // NEVER pass fit-to-page to CUPS for continuous strips, because CUPS squashes multi-label heights
+                // into a single nominal page, which shrinks the barcode and expands side margins!
+                PrintJobSettings strip_job = print_job_settings_;
+                strip_job.fit_to_page = false;
+
                 ok = print_manager_.print_rgba_buffer(strip.rgba, strip.width, strip.height,
-                                                      print_job_settings_, out_msg);
+                                                      strip_job, out_msg);
             }
             status_notification_ = out_msg;
             status_notification_timer_ = 6.0f;
