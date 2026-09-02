@@ -14,7 +14,8 @@ struct BarcodeParams {
     float bar_height = 90.0f;        // Height of barcode bars in pixels
     float text_size = 32.0f;         // Human readable text size in pixels
     float quiet_zone_x = 10.0f;      // Quiet zone margins on left and right in modules (standard >= 10)
-    float margin_y = 8.0f;           // Top and bottom paper margins in pixels
+    float margin_y = 8.0f;           // Top paper margin in pixels
+    float margin_bottom = 8.0f;      // Bottom margin / separation between labels in pixels
     float text_gap_y = 8.0f;         // Spacing between bars and text in pixels
     bool show_cut_line = false;      // Optional cut line on individual label
     int cut_line_style = 0;          // 0 = Dashed, 1 = Solid, 2 = Side marks

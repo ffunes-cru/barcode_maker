@@ -271,9 +271,8 @@ BarcodeImage BarcodeEngine::generate(const BarcodeParams& params) {
     int text_actual_h = (max_bearing_y + max_descender_y > 0) ? (max_bearing_y + max_descender_y) : 0;
     float extra_cut_space = params.show_cut_line ? 4.0f : 0.0f;
 
-    // Exact Symmetrical Height:
-    // Top margin (params.margin_y) + Bar height (params.bar_height) + (Text gap + Text height if active) + Bottom margin (params.margin_y) + Cut line
-    int image_height = (int)std::ceil(params.margin_y + params.bar_height + (text_actual_h > 0 ? (params.text_gap_y + (float)text_actual_h) : 0.0f) + params.margin_y + extra_cut_space);
+    // Top margin (params.margin_y) + Bar height (params.bar_height) + (Text gap + Text height if active) + Bottom margin / label separation (params.margin_bottom) + Cut line
+    int image_height = (int)std::ceil(params.margin_y + params.bar_height + (text_actual_h > 0 ? (params.text_gap_y + (float)text_actual_h) : 0.0f) + params.margin_bottom + extra_cut_space);
 
     if (image_width < 10 || image_height < 10) {
         result.error_message = "Dimensiones calculadas inválidas";

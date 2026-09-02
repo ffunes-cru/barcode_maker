@@ -41,7 +41,8 @@ static int run_cli(int argc, char* argv[]) {
             std::cout << "  -H, --height <val>         Bar height (px)\n";
             std::cout << "  -T, --height-txt <val>     Text size (px)\n";
             std::cout << "  -X, --padd-x <val>         Quiet zone margin (modules)\n";
-            std::cout << "  -Y, --padd-y <val>         Margin Y (px)\n";
+            std::cout << "  -Y, --padd-y <val>         Margin Top Y (px)\n";
+            std::cout << "  -B, --padd-bottom-y <val>  Margin Bottom / Separation (px)\n";
             std::cout << "  -y, --padd-txt-y <val>     Text gap Y (px)\n";
             std::cout << "  -R, --res-fact <val>       Module width (px)\n";
             std::cout << "  -C, --comp-fact <val>      Compression factor\n";
@@ -64,6 +65,8 @@ static int run_cli(int argc, char* argv[]) {
             params.quiet_zone_x = (float)std::atof(argv[++i]);
         } else if ((arg == "-Y" || arg == "--padd-y") && i + 1 < argc) {
             params.margin_y = (float)std::atof(argv[++i]);
+        } else if ((arg == "-B" || arg == "--padd-bottom-y") && i + 1 < argc) {
+            params.margin_bottom = (float)std::atof(argv[++i]);
         } else if ((arg == "-y" || arg == "--padd-txt-y") && i + 1 < argc) {
             params.text_gap_y = (float)std::atof(argv[++i]);
         } else if ((arg == "-R" || arg == "--res-fact") && i + 1 < argc) {

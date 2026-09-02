@@ -18,6 +18,7 @@ struct Preset {
     float text_size = 30.0f;
     float quiet_zone_x = 10.0f;
     float margin_y = 8.0f;
+    float margin_bottom = 8.0f;
     float text_gap_y = 6.0f;
 
     // Brother QL Roll & Strip Settings

@@ -72,6 +72,7 @@ void App::apply_preset(const Preset& p) {
     params_.text_size = p.text_size;
     params_.quiet_zone_x = p.quiet_zone_x;
     params_.margin_y = p.margin_y;
+    params_.margin_bottom = p.margin_bottom;
     params_.text_gap_y = p.text_gap_y;
     params_.show_cut_line = p.show_cut_lines;
     params_.cut_line_style = p.cut_line_style;
@@ -494,8 +495,14 @@ void App::render_left_panel() {
         }
 
         float marg_y_mm = params_.margin_y / (300.0f / 25.4f);
-        ImGui::Text("Margen Superior e Inferior (Y): %.1f px (%.1f mm)", params_.margin_y, marg_y_mm);
-        if (ImGui::SliderFloat("##MarginY", &params_.margin_y, 0.0f, 30.0f, "%.1f px")) {
+        ImGui::Text("Margen Superior (Y): %.1f px (%.1f mm)", params_.margin_y, marg_y_mm);
+        if (ImGui::SliderFloat("##MarginY", &params_.margin_y, 0.0f, 60.0f, "%.1f px")) {
+            update_barcode_data();
+        }
+
+        float marg_bot_mm = params_.margin_bottom / (300.0f / 25.4f);
+        ImGui::Text("Separacion entre Etiquetas (Margen Inferior): %.1f px (%.1f mm)", params_.margin_bottom, marg_bot_mm);
+        if (ImGui::SliderFloat("##MarginBottom", &params_.margin_bottom, 0.0f, 150.0f, "%.1f px")) {
             update_barcode_data();
         }
 
@@ -555,6 +562,7 @@ void App::render_left_panel() {
             new_p.text_size = params_.text_size;
             new_p.quiet_zone_x = params_.quiet_zone_x;
             new_p.margin_y = params_.margin_y;
+            new_p.margin_bottom = params_.margin_bottom;
             new_p.text_gap_y = params_.text_gap_y;
             new_p.roll_width_mm = strip_settings_.roll_width_mm;
             new_p.printable_width_mm = strip_settings_.printable_width_mm;
@@ -1251,6 +1259,7 @@ void App::render_preset_abm_modal() {
                     abm_edit_preset_.text_size = params_.text_size;
                     abm_edit_preset_.quiet_zone_x = params_.quiet_zone_x;
                     abm_edit_preset_.margin_y = params_.margin_y;
+                    abm_edit_preset_.margin_bottom = params_.margin_bottom;
                     abm_edit_preset_.text_gap_y = params_.text_gap_y;
                     abm_edit_preset_.roll_width_mm = strip_settings_.roll_width_mm;
                     abm_edit_preset_.printable_width_mm = strip_settings_.printable_width_mm;
@@ -1325,9 +1334,13 @@ void App::render_preset_abm_modal() {
                 ImGui::SetNextItemWidth(130);
                 ImGui::SliderFloat("##ABMTxtSz", &abm_edit_preset_.text_size, 8.0f, 250.0f, "%.1f px");
 
-                ImGui::Text("Margen Superior/Inf (Y):");
+                ImGui::Text("Margen Superior (Y):");
                 ImGui::SetNextItemWidth(130);
-                ImGui::SliderFloat("##ABMMargY", &abm_edit_preset_.margin_y, 0.0f, 30.0f, "%.1f px");
+                ImGui::SliderFloat("##ABMMargY", &abm_edit_preset_.margin_y, 0.0f, 60.0f, "%.1f px");
+
+                ImGui::Text("Margen Inferior / Separacion:");
+                ImGui::SetNextItemWidth(130);
+                ImGui::SliderFloat("##ABMMargBot", &abm_edit_preset_.margin_bottom, 0.0f, 150.0f, "%.1f px");
 
                 ImGui::NextColumn();
                 ImGui::Text("Altura de Barras:");
@@ -1373,6 +1386,7 @@ void App::render_preset_abm_modal() {
             new_p.text_size = params_.text_size;
             new_p.quiet_zone_x = params_.quiet_zone_x;
             new_p.margin_y = params_.margin_y;
+            new_p.margin_bottom = params_.margin_bottom;
             new_p.text_gap_y = params_.text_gap_y;
             new_p.roll_width_mm = strip_settings_.roll_width_mm;
             new_p.printable_width_mm = strip_settings_.printable_width_mm;

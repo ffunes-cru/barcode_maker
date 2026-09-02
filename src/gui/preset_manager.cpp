@@ -179,6 +179,7 @@ bool PresetManager::save_to_file() {
         f << "    \"text_size\": " << p.text_size << ",\n";
         f << "    \"quiet_zone_x\": " << p.quiet_zone_x << ",\n";
         f << "    \"margin_y\": " << p.margin_y << ",\n";
+        f << "    \"margin_bottom\": " << p.margin_bottom << ",\n";
         f << "    \"text_gap_y\": " << p.text_gap_y << ",\n";
         f << "    \"roll_width_mm\": " << p.roll_width_mm << ",\n";
         f << "    \"printable_width_mm\": " << p.printable_width_mm << ",\n";
@@ -255,6 +256,7 @@ bool PresetManager::load_from_file() {
         p.text_size = extract_float(block, "text_size", 30.0f);
         p.quiet_zone_x = extract_float(block, "quiet_zone_x", 10.0f);
         p.margin_y = extract_float(block, "margin_y", 8.0f);
+        p.margin_bottom = extract_float(block, "margin_bottom", p.margin_y);
         p.text_gap_y = extract_float(block, "text_gap_y", 6.0f);
 
         p.roll_width_mm = extract_float(block, "roll_width_mm", 62.0f);
