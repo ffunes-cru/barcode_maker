@@ -86,6 +86,7 @@ private:
     // Preset ABM Modal State
     bool show_preset_abm_modal_ = false;
     int abm_selected_preset_idx_ = 0;
+    Preset abm_edit_preset_;
     char abm_preset_name_buf_[128] = "";
     char abm_preset_desc_buf_[256] = "";
     std::string abm_status_msg_;
