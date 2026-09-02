@@ -621,7 +621,6 @@ void App::render_left_panel() {
             if (strip_settings_.printable_width_mm > strip_settings_.roll_width_mm) {
                 strip_settings_.printable_width_mm = strip_settings_.roll_width_mm - 4.0f;
             }
-            update_strip_texture();
         }
         ImGui::NextColumn();
         ImGui::Text("Imprimible (mm):");
@@ -631,68 +630,19 @@ void App::render_left_panel() {
                 strip_settings_.printable_width_mm = strip_settings_.roll_width_mm;
             }
             if (strip_settings_.printable_width_mm < 5.0f) strip_settings_.printable_width_mm = 5.0f;
-            update_strip_texture();
         }
         ImGui::Columns(1);
 
         ImGui::Spacing();
-
-        if (input_mode_ == InputMode::Manual) {
-            ImGui::Text("Repeticiones en tira:");
-            if (ImGui::SliderInt("##RepeatCount", &strip_settings_.repeat_count, 1, 30, "%d copias")) {
-                update_strip_texture();
-            }
-        } else {
-            if (ImGui::Checkbox("Generar tira con lista de lote", &strip_settings_.use_batch_list)) {
-                update_strip_texture();
-            }
-        }
-
-        ImGui::Text("Espaciado entre etiquetas (mm):");
-        if (ImGui::SliderFloat("##LabelGap", &strip_settings_.label_gap_mm, 0.0f, 15.0f, "%.1f mm")) {
-            update_strip_texture();
-        }
-
-        ImGui::Columns(2, "strip_margins_grid", false);
-        ImGui::Text("Margen Inicial (mm):");
-        ImGui::SetNextItemWidth(-1);
-        if (ImGui::SliderFloat("##StripLeadMargin", &strip_settings_.leading_margin_mm, 0.0f, 15.0f, "%.1f mm")) {
-            update_strip_texture();
-        }
-        ImGui::NextColumn();
-        ImGui::Text("Margen Final (mm):");
-        ImGui::SetNextItemWidth(-1);
-        if (ImGui::SliderFloat("##StripTrailMargin", &strip_settings_.trailing_margin_mm, 0.0f, 15.0f, "%.1f mm")) {
-            update_strip_texture();
-        }
-        ImGui::Columns(1);
-
-        ImGui::Spacing();
-
-        if (ImGui::Checkbox("Linea separadora en zona de corte", &strip_settings_.show_cut_lines)) {
-            update_strip_texture();
-        }
-        if (strip_settings_.show_cut_lines) {
-            ImGui::Indent(16.0f);
-            ImGui::Text("Estilo de corte en tira:");
-            ImGui::SetNextItemWidth(-1);
-            const char* cut_styles[] = { "Punteada (troquel)", "Solida continua", "Marcas laterales" };
-            if (ImGui::Combo("##StripCutStyle", &strip_settings_.cut_line_style, cut_styles, IM_ARRAYSIZE(cut_styles))) {
-                update_strip_texture();
-            }
-            ImGui::Unindent(16.0f);
-        }
-
         if (ImGui::Checkbox("Rotar 90 deg", &strip_settings_.rotate_90)) {
-            update_strip_texture();
+            update_barcode_data();
         }
-        ImGui::Checkbox("Corte automatico al finalizar la tira (Brother QL)", &print_job_settings_.cut_at_end);
     }
 
     ImGui::Spacing();
 
-    // --- 4. Export Options ---
-    if (ImGui::CollapsingHeader("4. Exportacion y Salida", ImGuiTreeNodeFlags_DefaultOpen)) {
+    // --- 4. Exportacion e Impresion ---
+    if (ImGui::CollapsingHeader("4. Exportacion e Impresion", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::Text("Carpeta de salida (-o):");
         ImGui::InputText("##OutputDir", output_dir_buf_, sizeof(output_dir_buf_));
 
@@ -700,41 +650,41 @@ void App::render_left_panel() {
             export_current_png();
         }
 
-        if (ImGui::Button("[ Exportar Tira Completa PNG ]", ImVec2(-1, 0))) {
-            export_strip_png();
-        }
-
         if (input_mode_ == InputMode::BatchFile && !batch_items_.empty()) {
-            if (ImGui::Button("[ Exportar Lote Completo PNGs ]", ImVec2(-1, 0))) {
+            if (ImGui::Button("[ Exportar Lote Completo a PNGs ]", ImVec2(-1, 0))) {
                 export_batch();
             }
+        }
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        if (ImGui::Button("[ Imprimir Directo en Brother QL... ]", ImVec2(-1, 38))) {
+            show_print_dialog_ = true;
         }
     }
 }
 
 void App::render_right_panel() {
-    ImGuiTabItemFlags tab1_flags = (request_tab_switch_ && target_tab_index_ == 0) ? ImGuiTabItemFlags_SetSelected : 0;
-    ImGuiTabItemFlags tab2_flags = (request_tab_switch_ && target_tab_index_ == 1) ? ImGuiTabItemFlags_SetSelected : 0;
-    ImGuiTabItemFlags tab3_flags = (request_tab_switch_ && target_tab_index_ == 2) ? ImGuiTabItemFlags_SetSelected : 0;
-    request_tab_switch_ = false;
+    if (input_mode_ == InputMode::BatchFile) {
+        ImGuiTabItemFlags tab1_flags = (request_tab_switch_ && target_tab_index_ == 0) ? ImGuiTabItemFlags_SetSelected : 0;
+        ImGuiTabItemFlags tab2_flags = (request_tab_switch_ && target_tab_index_ == 2) ? ImGuiTabItemFlags_SetSelected : 0;
+        request_tab_switch_ = false;
 
-    if (ImGui::BeginTabBar("MainRightTabBar", ImGuiTabBarFlags_None)) {
-        if (ImGui::BeginTabItem("Previsualizacion Individual", nullptr, tab1_flags)) {
-            render_live_preview_tab();
-            ImGui::EndTabItem();
+        if (ImGui::BeginTabBar("MainRightTabBar", ImGuiTabBarFlags_None)) {
+            if (ImGui::BeginTabItem("Previsualizacion de Etiqueta", nullptr, tab1_flags)) {
+                render_live_preview_tab();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Lista de Lote", nullptr, tab2_flags)) {
+                render_batch_table_tab();
+                ImGui::EndTabItem();
+            }
+            ImGui::EndTabBar();
         }
-
-        if (ImGui::BeginTabItem("Tira Continua Brother QL", nullptr, tab2_flags)) {
-            render_strip_preview_tab();
-            ImGui::EndTabItem();
-        }
-
-        if (input_mode_ == InputMode::BatchFile && ImGui::BeginTabItem("Lista de Lote", nullptr, tab3_flags)) {
-            render_batch_table_tab();
-            ImGui::EndTabItem();
-        }
-
-        ImGui::EndTabBar();
+    } else {
+        render_live_preview_tab();
     }
 }
 
@@ -1007,44 +957,31 @@ void App::render_print_modal() {
 
         ImGui::Spacing();
 
-        static int print_target_mode = 1; // Default to continuous strip (single long image) to avoid cutter gaps
-        ImGui::Text("Modo de Impresion en Rollo:");
-        ImGui::RadioButton("Tira Continua (1 sola imagen corrida - Sin pausas ni margenes de cuchilla)", &print_target_mode, 1);
-        ImGui::RadioButton("Etiqueta Individual (Corta y avanza en cada etiqueta)", &print_target_mode, 0);
-
         ImGui::Spacing();
-
         ImGui::Text("Orientacion de Impresion:");
         ImGui::RadioButton("Vertical / Portrait (-o orientation-requested=3) [Recomendado Brother QL]", &print_job_settings_.orientation, 3);
         ImGui::RadioButton("Horizontal / Landscape (-o orientation-requested=4)", &print_job_settings_.orientation, 4);
-        ImGui::RadioButton("Predeterminado del sistema", &print_job_settings_.orientation, 0);
 
         ImGui::Spacing();
 
-        ImGui::Text("Copias:");
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(100);
-        ImGui::InputInt("##PrintCopies", &print_job_settings_.copies);
-        if (print_job_settings_.copies < 1) print_job_settings_.copies = 1;
-
-        if (print_target_mode == 0) {
+        if (input_mode_ == InputMode::Manual) {
+            ImGui::Text("Copias a Imprimir:");
             ImGui::SameLine();
-            ImGui::Spacing();
-            ImGui::SameLine();
-            ImGui::Checkbox("Ajustar al ancho (fit-to-page)", &print_job_settings_.fit_to_page);
+            ImGui::SetNextItemWidth(100);
+            ImGui::InputInt("##PrintCopies", &print_job_settings_.copies);
+            if (print_job_settings_.copies < 1) print_job_settings_.copies = 1;
         } else {
-            ImGui::SameLine();
-            ImGui::Spacing();
-            ImGui::SameLine();
-            ImGui::TextDisabled("(Escala 1:1 nativa - Sin encogimiento)");
+            int count = (batch_array_len_limit_ > 0) ? std::min((int)batch_items_.size(), batch_array_len_limit_)
+                                                     : (int)batch_items_.size();
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Modo Lote: Se imprimiran %d etiquetas consecutivas.", count);
         }
 
         ImGui::Spacing();
         ImGui::Text("Control de Cuchilla / Corte (Brother QL):");
         ImGui::Checkbox("Activar corte automatico al finalizar (Auto-Cut ON)", &print_job_settings_.cut_at_end);
-        if (print_target_mode == 0) {
+        if (input_mode_ == InputMode::BatchFile) {
             ImGui::SameLine();
-            ImGui::Checkbox("Cortar cada etiqueta", &print_job_settings_.cut_each_label);
+            ImGui::Checkbox("Cortar cada etiqueta individual", &print_job_settings_.cut_each_label);
         }
 
         ImGui::Spacing();
@@ -1054,31 +991,33 @@ void App::render_print_modal() {
         if (ImGui::Button("[ Enviar a Impresora ]", ImVec2(200, 0))) {
             std::string out_msg;
             bool ok = false;
-            if (print_target_mode == 0) {
+            PrintJobSettings job = print_job_settings_;
+            job.fit_to_page = true; // Use fit-to-page so labels stretch to full roll width with dynamic length!
+
+            if (input_mode_ == InputMode::Manual) {
                 BarcodeImage single = engine_.generate(params_);
-                PrintJobSettings single_job = print_job_settings_;
-                single_job.fit_to_page = true; // Exact command: -o fit-to-page -o orientation-requested=3
                 ok = print_manager_.print_rgba_buffer(single.rgba, single.width, single.height,
-                                                      single_job, out_msg);
+                                                      job, out_msg);
             } else {
-                std::vector<std::string> labels;
-                if (input_mode_ == InputMode::BatchFile && strip_settings_.use_batch_list && !batch_items_.empty()) {
-                    int count = (batch_array_len_limit_ > 0) ? std::min((int)batch_items_.size(), batch_array_len_limit_)
-                                                             : (int)batch_items_.size();
-                    labels.assign(batch_items_.begin(), batch_items_.begin() + count);
-                } else {
-                    labels.assign(strip_settings_.repeat_count, params_.input);
+                int count = (batch_array_len_limit_ > 0) ? std::min((int)batch_items_.size(), batch_array_len_limit_)
+                                                         : (int)batch_items_.size();
+                int printed = 0;
+                for (int i = 0; i < count; ++i) {
+                    BarcodeParams p = params_;
+                    p.input = batch_items_[i];
+                    BarcodeImage single = engine_.generate(p);
+                    PrintJobSettings item_job = job;
+                    item_job.copies = 1;
+                    if (i < count - 1 && !job.cut_each_label) {
+                        item_job.cut_at_end = false;
+                    }
+                    if (print_manager_.print_rgba_buffer(single.rgba, single.width, single.height,
+                                                          item_job, out_msg)) {
+                        printed++;
+                    }
                 }
-                StripImage strip = StripGenerator::GenerateStrip(engine_, params_, labels, strip_settings_);
-
-                // Continuous strips are generated at the exact roll width (e.g. 1224 px @ 300 DPI).
-                // NEVER pass fit-to-page to CUPS for continuous strips, because CUPS squashes multi-label heights
-                // into a single nominal page, which shrinks the barcode and expands side margins!
-                PrintJobSettings strip_job = print_job_settings_;
-                strip_job.fit_to_page = false;
-
-                ok = print_manager_.print_rgba_buffer(strip.rgba, strip.width, strip.height,
-                                                      strip_job, out_msg);
+                ok = (printed > 0);
+                out_msg = "Lote enviado: " + std::to_string(printed) + " de " + std::to_string(count) + " etiquetas impresas";
             }
             status_notification_ = out_msg;
             status_notification_timer_ = 6.0f;
