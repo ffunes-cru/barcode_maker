@@ -345,19 +345,6 @@ static bool PrintRawBrotherRaster(const std::string& printer_name, const std::ve
         return false;
     }
 
-    std::vector<uint8_t> stream;
-    stream.reserve(256 + height * 170);
-
-    // 1. Invalidar estado anterior: 200 bytes de 0x00
-    stream.insert(stream.end(), 200, 0x00);
-
-    // 2. ESC @ (Inicializar)
-    stream.push_back(0x1B); stream.push_back(0x40);
-
-    // 3. Conmutar a modo Raster: ESC i a 0x01
-    stream.push_back(0x1B); stream.push_back(0x69); stream.push_back(0x61); stream.push_back(0x01);
-
-    // 4. Informacion de medio: ESC i z
     uint8_t media_w = (uint8_t)std::clamp((int)std::round(settings.roll_width_mm), 12, 102);
     int bytes_per_line = (media_w > 62) ? 162 : 90;
     int total_pins = bytes_per_line * 8; // 1296 puntos para cabezal 4" o 720 puntos
